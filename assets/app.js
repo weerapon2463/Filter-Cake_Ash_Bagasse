@@ -28,10 +28,10 @@
     { id: 'owner', label: 'สำเนาบัตรประชาชน + ทะเบียนบ้าน ของเจ้าของโฉนด', when: 'lease consent' },
   ];
   const STAFF_CHECKS = [
-    { id: 'certified', label: 'รับรองสำเนาถูกต้องครบทุกแผ่น (โฉนด: เจ้าของรับรองทั้ง 2 หน้า)' },
+    { id: 'certified', label: 'มีลายน้ำ + ตรา "สำเนาถูกต้อง" พร้อมลายเซ็นครบทุกแผ่น (โฉนด: ครบทั้ง 2 หน้า)' },
     { id: 'samename', label: 'เอกสารทุกฉบับเป็นชื่อผู้ขอคนเดียวกัน' },
     { id: 'notexpired', label: 'บัตรประชาชน / บัตรชาวไร่ยังไม่หมดอายุ' },
-    { id: 'signed', label: 'ผู้ขอเซ็นใบคำขอ และผู้รับเรื่องเซ็นแล้ว' },
+    { id: 'signed', label: 'ใบคำร้องมีลายเซ็นผู้ขอ' },
     { id: 'measures', label: 'ผู้ขอเซ็นรับเอกสารมาตรการป้องกันผลกระทบฯ แล้ว' },
   ];
   function docsFor(ownership) {
@@ -198,13 +198,13 @@
         <label class="p-f w50">ทะเบียน<input name="plate" value="${esc(v.plate)}" placeholder="เช่น กพ-1234 พิษณุโลก"></label>
       </div>
 
-      <div class="p-sec">โดยมีเอกสารที่ใช้เป็นหลักฐานประกอบใบคำร้อง ดังนี้ <small class="muted">(ถ่ายรูปแนบได้ — ต้องรับรองสำเนาถูกต้องทุกแผ่น)</small></div>
+      <div class="p-sec">โดยมีเอกสารที่ใช้เป็นหลักฐานประกอบใบคำร้อง ดังนี้ <small class="muted">(ถ่ายรูปเอกสารตัวจริง — ระบบใส่ลายน้ำและลายเซ็นรับรองสำเนาให้ทุกแผ่น)</small></div>
       <div class="radios">
         <span class="lbl">สิทธิ์ในที่ดิน</span>
         ${OWNERSHIP.map(o => `<label><input type="radio" name="ownership" value="${o.id}" ${(v.ownership || 'own') === o.id ? 'checked' : ''}> ${esc(o.label)}</label>`).join('')}
       </div>
       <ol class="p-docs" data-docs></ol>
-      ${staff ? '' : '<p class="hint">ถ้ายังไม่มีรูปครบ ยื่นคำร้องก่อนได้ แล้วส่งเอกสารฉบับจริงให้หัวหน้าเขต หรือเข้ามาแนบเพิ่มที่เมนู “ตรวจสถานะ”</p>'}
+      ${staff ? '' : '<p class="hint">ถ้ายังถ่ายไม่ครบ ยื่นคำร้องก่อนได้ แล้วเข้ามาถ่ายเพิ่มที่เมนู “ตรวจสถานะ”</p>'}
 
       <div class="p-sec">เงื่อนไขทางบริษัท</div>
       <ol class="p-cond">${CFG.CONDITIONS.map(c => `<li>${esc(c)}</li>`).join('')}</ol>
@@ -217,7 +217,9 @@
         </div>
       </details>
 
-      ${staff ? '' : `<label class="consent"><input type="checkbox" name="agree" required> ข้าพเจ้าขอรับรองว่าข้อมูลข้างต้นเป็นความจริง และขอยอมรับเงื่อนไขทางบริษัทฯ ทุกประการ (ลงชื่อจริงบนใบคำร้องที่พิมพ์ เมื่อส่งเอกสารให้หัวหน้าเขต)</label>`}
+      <div class="p-sec">ลงชื่อผู้ขอ <small class="muted">(ใช้นิ้วเซ็นในกรอบ — ใช้รับรองใบคำร้องและรับรองสำเนาเอกสารทุกแผ่น)</small>${staff ? ' <small class="muted">— ถ้าผู้ขออยู่ด้วย</small>' : ''}</div>
+      <div class="sigbox" data-sigbox></div>
+      ${staff ? '' : `<label class="consent"><input type="checkbox" name="agree" required> ข้าพเจ้าขอรับรองว่าข้อมูลข้างต้นเป็นความจริง สำเนาเอกสารที่แนบถูกต้อง และขอยอมรับเงื่อนไขทางบริษัทฯ ทุกประการ</label>`}
       <div class="actions">
         ${opts.onCancel ? '<button type="button" class="btn ghost" data-cancel>ยกเลิก</button>' : ''}
         <button class="btn primary" type="submit">${v.id ? 'บันทึก' : 'ยื่นคำร้อง'}</button>
@@ -229,13 +231,20 @@
       const own = f.ownership.value || 'own';
       const have = v.docs || {};
       $('[data-docs]', f).innerHTML = docsFor(own).map(d => {
-        const n = (have[d.id] || []).length + (picked[d.id] || []).length;
-        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : ''}</div>
-          <label class="btn small">📷 แนบรูป<input type="file" accept="image/*,application/pdf" multiple data-doc="${d.id}" hidden></label></li>`;
+        const n = (have[d.id] || []).length;
+        const mine = picked[d.id] || [];
+        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ส่งแล้ว ${n} ไฟล์</span>` : ''}</div>
+          ${docButtons(d.id)}
+          ${mine.length ? `<div class="thumbs">${mine.map((file, i) => `<span class="thumb">${file.type.startsWith('image/') ? `<img src="${thumbUrl(file)}" alt="">` : '<b>PDF</b>'}<button type="button" data-rm="${d.id}:${i}" aria-label="ลบรูป">✕</button></span>`).join('')}</div>` : ''}</li>`;
       }).join('');
     }
     function calc() { const r = num(f.rai.value); $('[data-tons]', f).textContent = r ? fmtNum(r * CFG.TONS_PER_RAI, 1) : '–'; }
     drawDocs(); calc();
+    const pad = signaturePad($('[data-sigbox]', f));
+    $('[data-docs]', f).addEventListener('click', e => {
+      const b = e.target.closest('[data-rm]'); if (!b) return;
+      const [doc, i] = b.dataset.rm.split(':'); picked[doc].splice(+i, 1); drawDocs();
+    });
     f.rai.addEventListener('input', calc);
     f.addEventListener('change', e => {
       if (e.target.name === 'ownership') drawDocs();
@@ -256,6 +265,7 @@
       if (!fd.address) err.push('กรอกที่อยู่');
       if (!(num(fd.rai) > 0)) err.push('กรอกจำนวนไร่');
       if (!fd.landLocation) err.push('กรอกที่ตั้งที่ดิน');
+      if (!staff && pad.isEmpty()) err.push('เซ็นชื่อผู้ขอในกรอบ');
       if (!staff && !fd.agree) err.push('ติ๊กยืนยันข้อมูล');
       if (err.length) return toast(err.join(' • '), true);
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
@@ -268,18 +278,20 @@
         };
         const res = staff ? await api('save', { pin: opts.user.pin, data }) : await api('submit', { data });
         const auth = staff ? { pin: opts.user.pin } : { phone: data.phone };
+        const sign = pad.isEmpty() ? '' : pad.toDataURL();
+        const mark = { product: data.product, name: data.name, sign };
         let failed = 0;
         const types = Object.keys(picked).filter(t => picked[t].length);
         for (let i = 0; i < types.length; i++) {
           btn.textContent = `กำลังทำ PDF และอัปโหลด ${i + 1}/${types.length}…`;
-          try { await uploadDocs(res.id, auth, types[i], picked[types[i]]); }
+          try { await uploadDocs(res.id, auth, types[i], picked[types[i]], null, mark); }
           catch (x) { failed++; console.warn(x); }
         }
         btn.textContent = 'กำลังสร้างใบคำร้อง PDF…';
-        const full = Object.assign({}, v, data, { id: res.id, created: v.created || new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI });
+        const full = Object.assign({}, v, data, { id: res.id, created: v.created || new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI, sign });
         if (!(await uploadFormPdf(full, auth))) failed++;
         if (failed) toast(`อัปโหลดไม่สำเร็จ ${failed} รายการ — แนบใหม่ได้ภายหลัง`, true);
-        opts.onDone && opts.onDone(res.id, data);
+        opts.onDone && opts.onDone(res.id, data, sign);
       } catch (x) {
         toast(x.message, true);
       } finally { btn.disabled = false; btn.textContent = v.id ? 'บันทึก' : 'ยื่นคำร้อง'; }
@@ -318,7 +330,7 @@
       <div>เงื่อนไขทางบริษัท</div>
       <ol class="pp-ol">${CFG.CONDITIONS.map(c => `<li>${esc(c)}</li>`).join('')}</ol>
       <div class="pp-sign">
-        <div>ลงชื่อ${dot('', '55mm')}ผู้ขอ<br>(${dot(r.name, '55mm')})</div>
+        <div>ลงชื่อ<span class="dl pp-signed" style="min-width:55mm">${r.sign ? `<img src="${r.sign}" alt="">` : ''}</span>ผู้ขอ<br>(${dot(r.name, '55mm')})</div>
         <div>ลงชื่อ${dot('', '55mm')}ผู้รับเรื่อง<br>(${dot('', '55mm')})</div>
       </div>
       <div class="pp-sign one"><div>ลงชื่อ${dot('', '55mm')}ผู้อนุมัติคำขอ<br>(${dot('', '50mm')})</div></div>
@@ -354,22 +366,118 @@
   const H2C = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
   const pdfOut = (doc, name) => ({ name, mime: 'application/pdf', data: doc.output('datauristring').split(',')[1] });
 
-  // รูปหลายรูป → PDF ไฟล์เดียว (A4 หน้าละรูป ย่อให้พอดีหน้า)
-  async function imagesToPdf(files, name) {
+  const loadImg = src => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => bad(new Error('ไฟล์รูปเสีย')); im.src = src; });
+
+  // ลายน้ำ (กันนำสำเนาไปใช้ที่อื่น) + ตรา "สำเนาถูกต้อง" พร้อมลายเซ็นผู้ขอ
+  async function watermark(el, mark = {}) {
+    const c = document.createElement('canvas'); c.width = el.width; c.height = el.height;
+    const g = c.getContext('2d'), W = c.width, H = c.height, u = Math.max(W, H) / 60;
+    g.drawImage(el, 0, 0);
+    const d = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+    const text = `ใช้สำหรับขอรับ${paperName(mark.product) || 'สิ่งปฏิกูล'} ${CFG.ORG_NAME} เท่านั้น · ${d}`;
+    g.save();
+    g.translate(W / 2, H / 2); g.rotate(-Math.atan2(H, W));
+    g.font = `700 ${Math.round(u * 1.6)}px Sarabun, sans-serif`; g.textAlign = 'center';
+    g.fillStyle = 'rgba(200, 30, 30, .28)';
+    const diag = Math.hypot(W, H), step = u * 7;
+    for (let y = -diag / 2; y < diag / 2; y += step) g.fillText(text, (y / step % 2) * u * 6, y);
+    g.restore();
+    if (mark.sign) { // ตรามุมขวาล่าง
+      const sig = await loadImg(mark.sign);
+      const bw = Math.min(W * .45, u * 22), bh = bw * .52, x = W - bw - u, y = H - bh - u;
+      g.fillStyle = 'rgba(255,255,255,.88)'; g.fillRect(x, y, bw, bh);
+      g.strokeStyle = '#1d3f9a'; g.lineWidth = Math.max(2, u / 6); g.strokeRect(x, y, bw, bh);
+      g.fillStyle = '#1d3f9a'; g.textAlign = 'center';
+      g.font = `700 ${Math.round(bh * .17)}px Sarabun, sans-serif`; g.fillText('สำเนาถูกต้อง', x + bw / 2, y + bh * .22);
+      const sh = bh * .45, sw = Math.min(bw * .9, sh * sig.width / sig.height);
+      g.drawImage(sig, x + (bw - sw) / 2, y + bh * .27, sw, sh);
+      g.font = `${Math.round(bh * .11)}px Sarabun, sans-serif`;
+      g.fillText(mark.name ? `(${mark.name}) ${d}` : d, x + bw / 2, y + bh * .9);
+    }
+    return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+  }
+
+  // รูปหลายรูป → PDF ไฟล์เดียว (A4 หน้าละรูป ย่อให้พอดีหน้า) พร้อมลายน้ำทุกหน้า
+  async function imagesToPdf(files, name, mark) {
     await loadScript(JSPDF);
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
     for (let i = 0; i < files.length; i++) {
       const img = await readFileForUpload(files[i]); // ย่อเป็น JPEG ≤1800px
-      const el = await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = 'data:image/jpeg;base64,' + img.data; });
+      const el = await loadImg('data:image/jpeg;base64,' + img.data);
+      const data = await watermark(el, mark);
       const landscape = el.width > el.height;
       if (i) doc.addPage('a4', landscape ? 'l' : 'p'); else if (landscape) { doc.deletePage(1); doc.addPage('a4', 'l'); }
       const pw = landscape ? 297 : 210, ph = landscape ? 210 : 297, m = 8;
       const k = Math.min((pw - 2 * m) / el.width, (ph - 2 * m) / el.height);
       const w = el.width * k, h = el.height * k;
-      doc.addImage(img.data, 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+      doc.addImage(data, 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
     }
     return pdfOut(doc, name);
   }
+
+  // ---------- ช่องเซ็นชื่อบนจอ ----------
+  function signaturePad(host) {
+    host.innerHTML = '<canvas aria-label="กรอบเซ็นชื่อ"></canvas><button type="button" class="btn small ghost" data-sigclear>ล้างลายเซ็น</button><span class="sighint">เซ็นตรงนี้</span>';
+    const c = $('canvas', host), g = c.getContext('2d');
+    let empty = true, last = null;
+    function fit() {
+      const r = c.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+      if (!r.width) return;
+      const keep = empty ? null : c.toDataURL();
+      c.width = r.width * k; c.height = r.height * k;
+      g.setTransform(k, 0, 0, k, 0, 0); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#1d3f9a'; g.lineWidth = 2.6;
+      if (keep) loadImg(keep).then(im => g.drawImage(im, 0, 0, r.width, r.height));
+    }
+    const pos = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    c.addEventListener('pointerdown', e => { if (!c.width || c.width < 10) fit(); c.setPointerCapture(e.pointerId); last = pos(e); });
+    c.addEventListener('pointermove', e => {
+      if (!last) return;
+      const p = pos(e); g.beginPath(); g.moveTo(...last); g.lineTo(...p); g.stroke(); last = p;
+      if (empty) { empty = false; host.classList.add('signed'); }
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => c.addEventListener(t, () => (last = null)));
+    $('[data-sigclear]', host).onclick = () => { g.clearRect(0, 0, c.width, c.height); empty = true; host.classList.remove('signed'); };
+    requestAnimationFrame(fit); window.addEventListener('resize', fit);
+    return {
+      isEmpty: () => empty,
+      toDataURL() { // ตัดขอบว่าง ให้ลายเซ็นเต็มกรอบเวลาวางบนเอกสาร
+        const d = g.getImageData(0, 0, c.width, c.height).data;
+        let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0;
+        for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2)
+          if (d[(y * c.width + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        if (x1 <= x0) return c.toDataURL('image/png');
+        const o = document.createElement('canvas'), pad = 8;
+        o.width = x1 - x0 + pad * 2; o.height = y1 - y0 + pad * 2;
+        o.getContext('2d').drawImage(c, x0 - pad, y0 - pad, o.width, o.height, 0, 0, o.width, o.height);
+        return o.toDataURL('image/png');
+      },
+    };
+  }
+  // ขอลายเซ็น (ตอนแนบเอกสารเพิ่มภายหลัง) — จำไว้จนปิดหน้า
+  let sessionSign = '';
+  function askSignature() {
+    if (sessionSign) return Promise.resolve(sessionSign);
+    return new Promise(done => {
+      const d = document.createElement('dialog');
+      d.innerHTML = `<div class="dhead"><b>เซ็นรับรองสำเนาถูกต้อง</b></div><div class="dbody">
+        <p class="muted">ลายเซ็นจะอยู่บนตรา "สำเนาถูกต้อง" มุมเอกสารทุกแผ่น</p><div class="sigbox" data-sigbox></div>
+        <div class="actions"><button type="button" class="btn ghost" data-no>ยกเลิก</button><button type="button" class="btn primary" data-ok>ใช้ลายเซ็นนี้</button></div></div>`;
+      document.body.appendChild(d); d.showModal();
+      const pad = signaturePad($('[data-sigbox]', d));
+      const close = v => { d.close(); d.remove(); done(v); };
+      $('[data-no]', d).onclick = () => close('');
+      $('[data-ok]', d).onclick = () => { if (pad.isEmpty()) return toast('เซ็นชื่อในกรอบก่อน', true); sessionSign = pad.toDataURL(); close(sessionSign); };
+    });
+  }
+
+  // ปุ่มแนบเอกสาร: ถ่ายรูปด้วยกล้อง / เลือกไฟล์ (รูปหรือ PDF)
+  function docButtons(docId, label = '📷 ถ่ายรูป') {
+    return `<span class="docbtns"><label class="btn small primary">${label}<input type="file" accept="image/*" capture="environment" data-doc="${docId}" hidden></label>` +
+      `<label class="btn small">📎 ไฟล์<input type="file" accept="image/*,application/pdf" multiple data-doc="${docId}" hidden></label></span>`;
+  }
+  const thumbs = new WeakMap();
+  function thumbUrl(file) { if (!thumbs.has(file)) thumbs.set(file, URL.createObjectURL(file)); return thumbs.get(file); }
 
   // ใบคำร้อง → PDF หน้าตาเหมือนฉบับพิมพ์
   async function formPdf(r) {
@@ -390,11 +498,11 @@
   }
 
   // อัปโหลดเอกสารประเภทเดียว: รูปทั้งหมดรวมเป็น PDF 1 ไฟล์, ไฟล์ PDF ส่งตามเดิม
-  async function uploadDocs(id, auth, docType, files, onStep) {
+  async function uploadDocs(id, auth, docType, files, onStep, mark) {
     files = [...files];
     const imgs = files.filter(f => f.type.startsWith('image/')), others = files.filter(f => !f.type.startsWith('image/'));
     const jobs = [];
-    if (imgs.length) jobs.push(() => imagesToPdf(imgs, docType + '.pdf'));
+    if (imgs.length) jobs.push(() => imagesToPdf(imgs, docType + '.pdf', mark));
     others.forEach(f => jobs.push(() => readFileForUpload(f)));
     for (const job of jobs) {
       onStep && onStep();
@@ -420,5 +528,6 @@
   }
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
-    productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer };
+    productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
+    askSignature, docButtons };
 })();

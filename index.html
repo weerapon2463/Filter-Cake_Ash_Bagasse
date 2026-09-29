@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929j">
+<link rel="stylesheet" href="assets/style.css?v=20260929k">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -81,9 +81,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929j"></script>
-<script src="assets/logic.js?v=20260929j"></script>
-<script src="assets/app.js?v=20260929j"></script>
+<script src="assets/config.js?v=20260929k"></script>
+<script src="assets/logic.js?v=20260929k"></script>
+<script src="assets/app.js?v=20260929k"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -106,21 +106,21 @@
 
   function drawForm() {
     FC.renderRequestForm($('[data-form-host]'), {
-      onDone(id, data) {
+      onDone(id, data, sign) {
         try { localStorage.setItem('fc-last', JSON.stringify({ id, phone: data.phone })); } catch {}
         $('[data-form-host]').innerHTML = `<div class="success">
           <p>ยื่นคำขอเรียบร้อย — เลขที่คำขอของคุณ</p>
           <div class="big">${esc(id)}</div>
           <p class="muted">จดหรือถ่ายภาพหน้าจอนี้ไว้ ใช้คู่กับเบอร์โทรเพื่อตรวจสถานะ<br>
           จำนวนที่ขอ ${fmtNum(data.rai, 2)} ไร่ × ${CFG.TONS_PER_RAI} = <b>${fmtNum(data.rai * CFG.TONS_PER_RAI, 1)} ตัน</b><br>
-          กรุณาพิมพ์ใบคำร้อง ลงชื่อ แล้วส่งพร้อมเอกสารฉบับจริง (รับรองสำเนา) ให้หัวหน้าเขต ${esc(data.zone)}</p>
+          ใบคำร้องและสำเนาเอกสารลงลายเซ็นแล้ว — หัวหน้าเขต ${esc(data.zone)} จะตรวจในระบบ ถ้าเอกสารยังไม่ครบ ถ่ายเพิ่มได้ที่ "ดูสถานะ"</p>
           <div class="cta" style="justify-content:center">
             <button class="btn primary" id="goCheck">ดูสถานะ / แนบเอกสารเพิ่ม</button>
             <button class="btn" id="printPaper">🖨 พิมพ์ใบคำร้อง</button><button class="btn" id="again">ยื่นคำขออีกรายการ</button>
           </div></div>`;
         $('#goCheck').onclick = () => { fillCheck(id, data.phone); show('check'); runCheck(); };
         $('#again').onclick = drawForm;
-        $('#printPaper').onclick = () => FC.printPaper(Object.assign({}, data, { id, created: new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI }));
+        $('#printPaper').onclick = () => FC.printPaper(Object.assign({}, data, { id, created: new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI, sign }));
       },
     });
   }
@@ -153,17 +153,18 @@
         <div>${need.map(d => {
           const n = (r.docCount || {})[d.id] || 0;
           return `<div class="docrow"><div>${esc(d.label)} ${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : '<span class="muted">– ยังไม่มี</span>'}</div>
-            ${r.canUpload ? `<label class="btn small">📷 แนบ<input type="file" accept="image/*,application/pdf" multiple hidden data-doc="${d.id}"></label>` : ''}</div>`;
+            ${r.canUpload ? FC.docButtons(d.id) : ''}</div>`;
         }).join('')}</div>
         <details style="margin-top:14px"><summary>ประวัติ</summary><ul class="timeline">${r.history.slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.a)}</li>`).join('')}</ul></details>
       </div>`;
       $$('[data-doc]', out).forEach(inp => inp.addEventListener('change', async () => {
         const files = [...inp.files]; if (!files.length) return;
-        const lbl = inp.parentElement; lbl.firstChild.textContent = 'กำลังอัปโหลด…';
+        const sign = await FC.askSignature(); if (!sign) return;
+        const lbl = inp.parentElement, was = lbl.firstChild.textContent; lbl.firstChild.textContent = 'กำลังอัปโหลด…';
         try {
-          await FC.uploadDocs(r.id, { phone: digits(cf.phone.value) }, inp.dataset.doc, files);
+          await FC.uploadDocs(r.id, { phone: digits(cf.phone.value) }, inp.dataset.doc, files, null, { product: r.product, sign });
           toast('แนบไฟล์เรียบร้อย'); runCheck();
-        } catch (x) { toast(x.message, true); lbl.firstChild.textContent = '📷 แนบ'; }
+        } catch (x) { toast(x.message, true); lbl.firstChild.textContent = was; }
       }));
     } catch (x) {
       out.innerHTML = `<div class="card"><b>${esc(x.message)}</b></div>`;

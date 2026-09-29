@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929j">
+<link rel="stylesheet" href="assets/style.css?v=20260929k">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -59,9 +59,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929j"></script>
-<script src="assets/logic.js?v=20260929j"></script>
-<script src="assets/app.js?v=20260929j"></script>
+<script src="assets/config.js?v=20260929k"></script>
+<script src="assets/logic.js?v=20260929k"></script>
+<script src="assets/app.js?v=20260929k"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -220,7 +220,7 @@
       ${need.map(d => {
         const fs = r.docs[d.id] || [];
         return `<div class="docrow"><div><b>${esc(d.label)}</b><div class="files">${fs.map((f, i) => f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name || 'ไฟล์ ' + (i + 1))}</a>` : `<span class="muted">${esc(f.name)}</span>`).join(' ') || '<span class="muted">– ยังไม่มี</span>'}</div></div>
-          <label class="btn small">+ แนบ<input type="file" accept="image/*,application/pdf" multiple hidden data-doc="${d.id}"></label></div>`;
+          ${FC.docButtons(d.id)}</div>`;
       }).join('')}
       <h3 style="margin-top:18px">ตรวจเอกสาร</h3>
       <form class="checklist" id="chk">${STAFF_CHECKS.map(c => `<label><input type="checkbox" name="${c.id}" ${r.checks && r.checks[c.id] ? 'checked' : ''}> ${esc(c.label)}</label>`).join('')}
@@ -253,7 +253,7 @@
     $$('[data-doc]', body).forEach(inp => inp.addEventListener('change', async () => {
       try {
         inp.parentElement.firstChild.textContent = 'กำลังทำ PDF…';
-        await FC.uploadDocs(r.id, { pin: me.pin }, inp.dataset.doc, inp.files);
+        await FC.uploadDocs(r.id, { pin: me.pin }, inp.dataset.doc, inp.files, null, { product: r.product });
         toast('แนบไฟล์แล้ว'); await load(); openDetail(r.id);
       } catch (x) { toast(x.message, true); }
     }));

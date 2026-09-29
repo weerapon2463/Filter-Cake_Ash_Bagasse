@@ -190,3 +190,18 @@ header.top .logo { width: 40px; height: 40px; flex: none; }
 .demo-banner { background: var(--amber); color: #fff; text-align: center; padding: 6px 16px; font-size: .9rem; font-weight: 600; }
 .demo-banner a { color: #fff; }
 @media print { .demo-banner { display: none; } }
+
+/* ถ่ายรูป / เซ็นชื่อบนจอ */
+.docbtns { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.p-docs .docrow .docbtns { float: right; margin-top: -4px; }
+.thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; clear: both; }
+.thumb { position: relative; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: var(--surface2); display: grid; place-items: center; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #000a; color: #fff; font-size: 12px; line-height: 22px; padding: 0; cursor: pointer; }
+.sigbox { position: relative; margin: 6px 0 12px; }
+.sigbox canvas { display: block; width: 100%; height: 170px; background: #fff; border: 2px dashed #9aa6c7; border-radius: 10px; touch-action: none; cursor: crosshair; }
+.sigbox .btn { position: absolute; right: 8px; bottom: 8px; background: #fff; color: #333; }
+.sigbox .sighint { position: absolute; left: 14px; bottom: 10px; color: #9aa6c7; pointer-events: none; font-size: .9rem; }
+.sigbox.signed .sighint { display: none; }
+.pp-signed { position: relative; display: inline-block; height: 1.2em; vertical-align: bottom; }
+.pp-signed img { position: absolute; left: 50%; bottom: -2mm; transform: translateX(-50%); max-height: 16mm; max-width: 52mm; }
