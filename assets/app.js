@@ -256,7 +256,7 @@
       if (e.target.name === 'product') $('[data-ptitle]', f).textContent = paperName(f.product.value) || 'กากตะกอนหม้อกรอง';
       if (e.target.dataset.doc) {
         const doc = e.target.dataset.doc, files = [...e.target.files]; e.target.value = '';
-        signEach(files, markNow(), { required: !staff }).then(ok => { picked[doc] = (picked[doc] || []).concat(ok); drawDocs(); });
+        signEach(files, markNow(), { required: !staff, docId: doc }).then(ok => { picked[doc] = (picked[doc] || []).concat(ok); drawDocs(); });
       }
     });
     if (opts.onCancel) $('[data-cancel]', f).onclick = opts.onCancel;
@@ -485,11 +485,11 @@
           const rot = $('[data-rot]', fig);
           if (rot) rot.onclick = () => { rotations.set(f, ((rotations.get(f) || 0) + 90) % 360); draw(); };
           const sg = $('[data-sign]', fig);
-          if (sg) sg.onclick = async () => { const got = await signPage(f, opts.mark, {}); if (got) gr.files[i] = got; draw(); };
+          if (sg) sg.onclick = async () => { const got = await signPage(f, opts.mark, { docId: gr.docId }); if (got) gr.files[i] = got; draw(); };
           $('[data-del]', fig).onclick = () => { gr.files.splice(i, 1); draw(); };
           $('[data-re]', fig).onchange = async e => {
             const nf = e.target.files[0]; if (!nf) return;
-            const got = opts.signRequired ? await signPage(nf, opts.mark, { required: true }) : nf;
+            const got = opts.signRequired ? await signPage(nf, opts.mark, { required: true, docId: gr.docId }) : nf;
             if (got) gr.files[i] = got; draw();
           };
           $('.pv-img', fig).onclick = () => fig.classList.toggle('big');
@@ -574,11 +574,16 @@
           <div class="dbody"><p class="muted">ตรวจรูปให้ชัด แล้วใช้นิ้วเซ็นในกรอบ "สำเนาถูกต้อง" ด้านล่างรูป</p>
           <div class="sp-wrap"><span class="muted">กำลังจัดหน้า…</span></div>
           <div class="actions"><button type="button" class="btn ghost" data-x>ยกเลิก</button>
-            <label class="btn">📷 ถ่ายใหม่<input type="file" accept="image/*" capture="environment" data-re hidden></label>
+            <button type="button" class="btn" data-recam>📷 ถ่ายใหม่</button><input type="file" accept="image/*" capture="environment" data-re hidden>
             <button type="button" class="btn" data-clear>ล้างลายเซ็น</button>
             <button type="button" class="btn primary" data-ok>✓ ใช้หน้านี้</button></div></div>`;
         $$('[data-x]', d).forEach(b => (b.onclick = () => close(null)));
         $('[data-re]', d).onchange = e => { if (e.target.files[0]) { file = e.target.files[0]; draw(); } };
+        $('[data-recam]', d).onclick = async () => {
+          const got = await openCamera(opts.docId || '');
+          if (got === 'fallback') return $('[data-re]', d).click();
+          if (got) { file = got; draw(); }
+        };
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         let c;
         try { c = await pageCanvas(file, Object.assign({}, mark, { signing: true })); }
@@ -626,10 +631,90 @@
   }
 
   // ปุ่มแนบเอกสาร: ถ่ายรูปด้วยกล้อง / เลือกไฟล์ (รูปหรือ PDF)
+  // 📷 = กล้องในเว็บ (มีกรอบเล็ง + ลายน้ำ) ถ้าเปิดไม่ได้จะใช้กล้องของเครื่องผ่าน input ที่ซ่อนไว้
   function docButtons(docId, label = '📷 ถ่ายรูป') {
-    return `<span class="docbtns"><label class="btn small primary">${label}<input type="file" accept="image/*" capture="environment" data-doc="${docId}" hidden></label>` +
+    return `<span class="docbtns"><button type="button" class="btn small primary" data-cam="${docId}">${label}</button>` +
+      `<input type="file" accept="image/*" capture="environment" data-doc="${docId}" data-camfile hidden>` +
       `<label class="btn small">📎 ไฟล์<input type="file" accept="image/*,application/pdf" multiple data-doc="${docId}" hidden></label></span>`;
   }
+
+  // ---------- กล้องในเว็บ: กรอบเล็ง + ลายน้ำบนภาพสด ถ่ายแล้วตัดตามกรอบ ----------
+  const CARD_DOCS = ['idcard'];
+  function openCamera(docId) {
+    return new Promise(async done => {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } });
+      } catch (x) { return done('fallback'); }
+      const doc = DOCS.find(x => x.id === docId) || { label: 'เอกสาร' };
+      let shape = CARD_DOCS.includes(docId) ? 'card' : 'a4';
+      const d = document.createElement('dialog'); d.className = 'camera';
+      d.innerHTML = `<div class="cam-view"><video playsinline autoplay muted></video><canvas class="cam-ov"></canvas>
+        <div class="cam-top"><b>${esc(doc.label)}</b><small>วางเอกสารให้พอดีกรอบ · ถือให้นิ่ง · แสงสว่างพอ</small></div></div>
+        <div class="cam-bar"><button type="button" class="btn" data-x>ยกเลิก</button>
+          <button type="button" class="cam-shot" data-shot aria-label="ถ่ายรูป"></button>
+          <button type="button" class="btn" data-shape>${shape === 'card' ? 'กรอบ: บัตร' : 'กรอบ: A4'}</button></div>`;
+      document.body.appendChild(d); d.showModal();
+      const video = $('video', d), ov = $('.cam-ov', d);
+      video.srcObject = stream;
+      const stop = v => { stream.getTracks().forEach(t => t.stop()); d.close(); d.remove(); done(v); };
+      // กรอบในพิกัดของกล่องภาพ (video ใช้ object-fit: contain)
+      function layout() {
+        const W = video.clientWidth, H = video.clientHeight, vw = video.videoWidth || 4, vh = video.videoHeight || 3;
+        const k = Math.min(W / vw, H / vh), dw = vw * k, dh = vh * k, dx = (W - dw) / 2, dy = (H - dh) / 2;
+        const ar = shape === 'card' ? 85.6 / 54 : 210 / 297;
+        let fw = dw * .9, fh = fw / ar;
+        if (fh > dh * .86) { fh = dh * .86; fw = fh * ar; }
+        return { W, H, k, dx, dy, fx: dx + (dw - fw) / 2, fy: dy + (dh - fh) / 2, fw, fh };
+      }
+      function drawOverlay() {
+        const L = layout(), r = window.devicePixelRatio || 1;
+        ov.width = L.W * r; ov.height = L.H * r; ov.style.width = L.W + 'px'; ov.style.height = L.H + 'px';
+        const g = ov.getContext('2d'); g.setTransform(r, 0, 0, r, 0, 0);
+        g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(0, 0, L.W, L.H); g.clearRect(L.fx, L.fy, L.fw, L.fh);
+        // ลายน้ำ (ตัวอย่างสิ่งที่จะอยู่บนสำเนา)
+        g.save(); g.beginPath(); g.rect(L.fx, L.fy, L.fw, L.fh); g.clip();
+        g.translate(L.fx + L.fw / 2, L.fy + L.fh / 2); g.rotate(-Math.atan2(L.fh, L.fw));
+        const fs = Math.max(11, L.fw / 26);
+        g.font = `700 ${fs}px Sarabun, sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(255, 80, 80, .45)';
+        const t = `ใช้สำหรับขอรับสิ่งปฏิกูล ${CFG.ORG_NAME} เท่านั้น`, diag = Math.hypot(L.fw, L.fh);
+        for (let y = -diag / 2, n = 0; y < diag / 2; y += fs * 3.4, n++) g.fillText(t, (n % 2) * fs * 3, y);
+        g.restore();
+        // มุมกรอบ
+        g.strokeStyle = '#fff'; g.lineWidth = 4; const c = Math.min(L.fw, L.fh) * .12;
+        [[L.fx, L.fy, 1, 1], [L.fx + L.fw, L.fy, -1, 1], [L.fx, L.fy + L.fh, 1, -1], [L.fx + L.fw, L.fy + L.fh, -1, -1]].forEach(([x, y, sx, sy]) => {
+          g.beginPath(); g.moveTo(x, y + c * sy); g.lineTo(x, y); g.lineTo(x + c * sx, y); g.stroke();
+        });
+        g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.strokeRect(L.fx, L.fy, L.fw, L.fh);
+      }
+      video.addEventListener('loadedmetadata', drawOverlay);
+      const ro = window.ResizeObserver ? new ResizeObserver(drawOverlay) : null; if (ro) ro.observe(video);
+      $('[data-x]', d).onclick = () => stop(null);
+      d.addEventListener('cancel', e => { e.preventDefault(); stop(null); });
+      $('[data-shape]', d).onclick = e => { shape = shape === 'card' ? 'a4' : 'card'; e.target.textContent = shape === 'card' ? 'กรอบ: บัตร' : 'กรอบ: A4'; drawOverlay(); };
+      $('[data-shot]', d).onclick = () => {
+        if (!video.videoWidth) return;
+        const L = layout(), sx = (L.fx - L.dx) / L.k, sy = (L.fy - L.dy) / L.k, sw = L.fw / L.k, sh = L.fh / L.k;
+        const c = document.createElement('canvas'); c.width = Math.round(sw); c.height = Math.round(sh);
+        c.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, c.width, c.height);
+        d.classList.add('flash');
+        c.toBlob(b => stop(new File([b], docId + '-' + Date.now() + '.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.9);
+      };
+    });
+  }
+  // ปุ่ม 📷 ทุกหน้า: ถ่ายด้วยกล้องในเว็บ แล้วส่งรูปเข้า input เดิม (โค้ดเดิมที่ฟัง change ทำงานต่อได้เลย)
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-cam]'); if (!b) return;
+    const inp = b.parentElement.querySelector('[data-camfile]');
+    const got = navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? await openCamera(b.dataset.cam) : 'fallback';
+    if (got === 'fallback') return inp.click();
+    if (!got) return;
+    try {
+      const dt = new DataTransfer(); dt.items.add(got); inp.files = dt.files;
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (x) { toast('เบราว์เซอร์นี้ส่งรูปจากกล้องไม่ได้ — ใช้ปุ่ม 📎 ไฟล์ แทน', true); }
+  });
   const thumbs = new WeakMap();
   function thumbUrl(file) { if (!thumbs.has(file)) thumbs.set(file, URL.createObjectURL(file)); return thumbs.get(file); }
 
@@ -655,7 +740,7 @@
   // อัปโหลดเอกสารประเภทเดียว: รูปทั้งหมดรวมเป็น PDF 1 ไฟล์, ไฟล์ PDF ส่งตามเดิม
   // แนบเพิ่มภายหลัง: ดูตัวอย่าง/แก้ก่อน แล้วค่อยส่ง — คืน false ถ้าผู้ใช้ยกเลิก
   async function reviewAndUpload(id, auth, docId, files, mark, needSign) {
-    files = needSign ? await signEach([...files], mark, { required: true }) : [...files];
+    files = needSign ? await signEach([...files], mark, { required: true, docId }) : [...files];
     if (!files.length) return false;
     const gr = [{ docId, label: (DOCS.find(x => x.id === docId) || {}).label || docId, files }];
     if (!(await reviewDocs(gr, { title: 'ตรวจก่อนส่ง', mark, okText: 'ยืนยันส่งเอกสาร', signRequired: needSign })) || !gr[0].files.length) return false;

@@ -229,3 +229,18 @@ dialog.signpage { width: min(760px, calc(100vw - 8px)); }
 .sp-pad canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; background: rgba(255, 244, 170, .25); border-radius: 4px; }
 .sp-pad.signed canvas { background: transparent; }
 @media (max-width: 620px) { dialog.signpage .dbody, dialog.review .dbody { padding: 10px; } dialog.signpage .actions .btn { flex: 1 1 40%; } }
+
+/* กล้องในเว็บ */
+dialog.camera { width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; margin: 0; border-radius: 0; background: #000; color: #fff; display: flex; flex-direction: column; }
+dialog.camera[open] { display: flex; }
+.cam-view { position: relative; flex: 1; min-height: 0; }
+.cam-view video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.cam-ov { position: absolute; left: 0; top: 0; pointer-events: none; }
+.cam-top { position: absolute; left: 0; right: 0; top: 0; padding: 12px 16px; text-align: center; background: linear-gradient(#000a, transparent); }
+.cam-top small { display: block; opacity: .85; }
+.cam-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: #000; }
+.cam-bar .btn { min-width: 96px; }
+.cam-shot { width: 72px; height: 72px; border-radius: 50%; border: 5px solid #fff; background: #fff3; cursor: pointer; flex: none; }
+.cam-shot:active { background: #fff; }
+dialog.camera.flash .cam-view { animation: camflash .25s; }
+@keyframes camflash { from { filter: brightness(3); } to { filter: none; } }
