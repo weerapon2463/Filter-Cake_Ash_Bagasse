@@ -11,13 +11,14 @@ var BATCH_MAX = 30;
 var WRITE_ACTIONS = ['submit', 'upload', 'save', 'checks', 'setStatus'];
 var ROOT_FOLDER_ID = '15C0mQHPmuD6Yy6KRKI7zo7DPHr8psBqQ'; // โฟลเดอร์ Drive ของโปรเจกต์ (Sheet อยู่ในนี้)
 // เดโมสาธารณะ = โปรเจกต์ Apps Script + Sheet แยก ที่มีไฟล์ Demo.gs บรรทัดเดียว: var DEMO_MODE = true;
-var IS_DEMO = typeof DEMO_MODE !== 'undefined' && DEMO_MODE === true;
+// ตรวจตอนเรียกใช้ (ไม่ใช่ตอนโหลดไฟล์) เพราะ Apps Script โหลด Code.gs ก่อน Demo.gs
+function isDemo_() { return typeof DEMO_MODE !== 'undefined' && DEMO_MODE === true; }
 var DEMO_USERS = [
   { pin: '000000', name: 'แผนกสิ่งแวดล้อม (ทดลอง)', role: 'env', zone: '' },
   { pin: '111111', name: 'หัวหน้าเขต 1 (ทดลอง)', role: 'zone', zone: '1' },
   { pin: '555555', name: 'หัวหน้าเขต 5 (ทดลอง)', role: 'zone', zone: '5' },
 ];
-var UPLOAD_FOLDER_NAME = (IS_DEMO ? 'DEMO ' : '') + 'เอกสารคำขอ ' + SEASON.replace('/', '-');
+function uploadFolderName_() { return (isDemo_() ? 'DEMO ' : '') + 'เอกสารคำขอ ' + SEASON.replace('/', '-'); }
 // โครงสร้างโฟลเดอร์: เอกสารคำขอ 2569-70 / 01 ขี้หม้อกรอง / เขต 01 / FC6970-0001 ชื่อผู้ขอ / 00 ใบคำร้อง.pdf …
 var PRODUCT_DIRS = { filtercake: '01 ขี้หม้อกรอง', leaf: '02 กากใบอ้อย', ash: '03 ขี้เถ้า' };
 var DOC_NAMES = {
@@ -37,8 +38,8 @@ function setup() {
     us.getRange('A:A').setNumberFormat('@');
     us.getRange(1, 1, 3, 4).setValues([
       ['PIN (6 หลัก)', 'ชื่อ', 'บทบาท (env=แผนกสิ่งแวดล้อม / zone=หัวหน้าเขต)', 'เขต'],
-      IS_DEMO ? ['000000', 'แผนกสิ่งแวดล้อม (ทดลอง) — เดโมใช้ PIN ชุดนี้ตายตัว', 'env', ''] : [randomPin_(), 'แผนกสิ่งแวดล้อม', 'env', ''],
-      IS_DEMO ? ['111111', 'หัวหน้าเขต 1 (ทดลอง)', 'zone', '1'] : [randomPin_(), 'หัวหน้าเขต 1', 'zone', '1'],
+      isDemo_() ? ['000000', 'แผนกสิ่งแวดล้อม (ทดลอง) — เดโมใช้ PIN ชุดนี้ตายตัว', 'env', ''] : [randomPin_(), 'แผนกสิ่งแวดล้อม', 'env', ''],
+      isDemo_() ? ['111111', 'หัวหน้าเขต 1 (ทดลอง)', 'zone', '1'] : [randomPin_(), 'หัวหน้าเขต 1', 'zone', '1'],
     ]).setNumberFormat('@');
     us.getRange(1, 1, 1, 4).setFontWeight('bold');
   }
@@ -46,7 +47,7 @@ function setup() {
   for (var k in PRODUCT_DIRS) child_(root, PRODUCT_DIRS[k]);
   var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('แผ่น1') || ss.getSheetByName('ชีต1');
   if (def && ss.getSheets().length > 1 && def.getLastRow() === 0) ss.deleteSheet(def);
-  if (IS_DEMO) {
+  if (isDemo_()) {
     if (loadDb_().rows.length === 0) seedDemo_();
     ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'resetDemo') ScriptApp.deleteTrigger(t); });
     ScriptApp.newTrigger('resetDemo').timeBased().everyDays(1).atHour(3).create();
@@ -59,17 +60,17 @@ function randomPin_() { return String(Math.floor(100000 + Math.random() * 900000
 function folder_() {
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty('FOLDER_ID');
-  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  if (id) { try { var cached = DriveApp.getFolderById(id); if (cached.getName() === uploadFolderName_() && !cached.isTrashed()) return cached; } catch (e) {} }
   var parent;
   try { parent = DriveApp.getFolderById(ROOT_FOLDER_ID); } catch (e) { parent = DriveApp.getRootFolder(); }
-  var it = parent.getFoldersByName(UPLOAD_FOLDER_NAME);
-  var f = it.hasNext() ? it.next() : parent.createFolder(UPLOAD_FOLDER_NAME);
+  var it = parent.getFoldersByName(uploadFolderName_());
+  var f = it.hasNext() ? it.next() : parent.createFolder(uploadFolderName_());
   props.setProperty('FOLDER_ID', f.getId());
   return f;
 }
 
 function users_() {
-  if (IS_DEMO) return DEMO_USERS;
+  if (isDemo_()) return DEMO_USERS;
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_USERS);
   if (!sh) return [];
   return sh.getDataRange().getDisplayValues().slice(1).filter(function (r) { return r[0]; })
@@ -164,7 +165,22 @@ function pinGuard_(p, res) {
   return null;
 }
 
+function demoInit_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('DEMO_READY') === '2') return;
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    if (props.getProperty('DEMO_READY') === '2') return;
+    var ss = SpreadsheetApp.getActive(), us = ss.getSheetByName(SHEET_USERS);
+    if (us) ss.deleteSheet(us); // แท็บผู้ใช้เดิมถูกสร้างแบบของจริง → สร้างใหม่ให้แสดง PIN ทดลอง
+    props.deleteProperty('FOLDER_ID');
+    setup();
+    props.setProperty('DEMO_READY', '2');
+  } finally { lock.releaseLock(); }
+}
+
 function handle_(p) {
+  if (isDemo_()) demoInit_();
   var blocked = pinGuard_(p); if (blocked) return blocked;
   if (p.action === 'submit') {
     var c = CacheService.getScriptCache(), k = 'sub' + Math.floor(Date.now() / 60000), n = Number(c.get(k) || 0);
@@ -232,7 +248,7 @@ function seedDemo_() {
   saveDb_(db, db.rows.map(function (r) { return r.id; }));
 }
 function resetDemo() {
-  if (!IS_DEMO) throw new Error('ใช้ได้เฉพาะโปรเจกต์เดโม');
+  if (!isDemo_()) throw new Error('ใช้ได้เฉพาะโปรเจกต์เดโม');
   var lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_REQ);
