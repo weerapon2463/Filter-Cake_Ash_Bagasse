@@ -102,8 +102,12 @@ function settings_() {
   var c = CacheService.getScriptCache(), hit = c.get('settings');
   if (hit) return JSON.parse(hit);
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_SETTINGS), out = {};
-  if (sh) sh.getDataRange().getDisplayValues().slice(1).forEach(function (r) {
-    if (SETTING_KEYS[r[0]]) try { out[r[0]] = JSON.parse(r[1]); } catch (e) {}
+  // อ่านค่าดิบ: Sheets อาจแปลงข้อความ false/20 เป็น boolean/ตัวเลขเอง
+  if (sh) sh.getDataRange().getValues().slice(1).forEach(function (r) {
+    if (!SETTING_KEYS[r[0]]) return;
+    var v = r[1];
+    if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { return; } }
+    out[r[0]] = v;
   });
   c.put('settings', JSON.stringify(out), 600);
   return out;
@@ -220,7 +224,8 @@ var ADMIN = {
       var v = cleanSetting_(SETTING_KEYS[k], d[k]);
       if (v === null) return { ok: false, error: 'ค่าไม่ถูกต้อง: ' + k };
       var json = JSON.stringify(v);
-      if (at[k]) sh.getRange(at[k], 2).setValue(json); else { sh.appendRow([k, json]); at[k] = sh.getLastRow(); }
+      if (!at[k]) { sh.appendRow([k, '']); at[k] = sh.getLastRow(); }
+      sh.getRange(at[k], 2).setNumberFormat('@').setValue(json);
       changed.push(k);
     }
     CacheService.getScriptCache().remove('settings');

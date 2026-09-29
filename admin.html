@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929x">
+<link rel="stylesheet" href="assets/style.css?v=20260929y">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -49,9 +49,9 @@
 
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 
-<script src="assets/config.js?v=20260929x"></script>
-<script src="assets/logic.js?v=20260929x"></script>
-<script src="assets/app.js?v=20260929x"></script>
+<script src="assets/config.js?v=20260929y"></script>
+<script src="assets/logic.js?v=20260929y"></script>
+<script src="assets/app.js?v=20260929y"></script>
 <script>
 (function () {
   const { CFG, STATUS, ROLE_LABEL, $, $$, esc, fmtNum, fmtDate, num, productName, toast, api } = FC;
@@ -256,6 +256,8 @@
       if (!data.SEASON) return toast('กรอกปีการผลิต', true);
       if (!(data.TONS_PER_RAI > 0)) return toast('ตัน/ไร่ไม่ถูกต้อง', true);
       if (!data.ZONES.length) return toast('ต้องมีอย่างน้อย 1 เขต', true);
+      Object.keys(data).forEach(k => { if (JSON.stringify(data[k]) === JSON.stringify(CFG[k])) delete data[k]; }); // ส่งเฉพาะที่แก้ (บันทึกการใช้งานจะได้ชัด)
+      if (!Object.keys(data).length) return toast('ไม่มีค่าที่เปลี่ยน');
       const b = $('button.primary', f); b.disabled = true; b.textContent = 'กำลังบันทึก…';
       try { const res = await api('settingsSave', { pin: me.pin, data }); FC.setSettings(res.settings); toast('บันทึกการตั้งค่าแล้ว — หน้าเว็บทุกเครื่องใช้ค่าใหม่เมื่อเปิดครั้งถัดไป'); }
       catch (x) { toast(x.message, true); }
