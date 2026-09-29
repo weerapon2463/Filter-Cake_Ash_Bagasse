@@ -147,6 +147,10 @@ footer#footer { text-align: center; color: var(--muted); font-size: .88rem; padd
 .p-no span { color: var(--muted); margin-right: 6px; }
 .p-no i { font-style: normal; border-bottom: 1px dotted var(--muted); padding: 0 6px; }
 .p-org { font-weight: 700; text-align: center; }
+.p-logo, .pp-logo { display: block; margin: 0 auto 4px; }
+.p-logo { width: 56px; height: 56px; }
+.pp-logo { width: 18mm; height: 18mm; }
+header.top .logo { width: 40px; height: 40px; flex: none; }
 .p-title { text-align: center; margin: 14px 0 4px; font-size: 1.2rem; }
 .p-date { text-align: right; margin-bottom: 14px; }
 .p-date u, .p-f u { text-decoration: none; border-bottom: 1px dotted var(--muted); padding: 0 8px; font-weight: 600; }

@@ -166,7 +166,7 @@
       <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
       <div class="p-head">
         <div class="p-no"><span>เล่มที่</span><i>${esc(v.bookNo || '')}</i></div>
-        <div class="p-org">${esc(CFG.ORG_NAME)}</div>
+        <div class="p-org"><img src="assets/logo.png" alt="" class="p-logo">${esc(CFG.ORG_NAME)}</div>
         <div class="p-no"><span>เลขที่</span><i>${esc(v.id || '(ออกให้อัตโนมัติ)')}</i></div>
       </div>
       <h3 class="p-title">ใบคำร้องขอ<span data-ptitle>${esc(paperName(v.product) || 'กากตะกอนหม้อกรอง')}</span></h3>
@@ -303,7 +303,7 @@
     const d = new Date(r.created || Date.now());
     const need = docsFor(r.ownership || 'own');
     return `<div class="pp">
-      <div class="pp-head"><div>เล่มที่${dot(r.bookNo, '28mm')}</div><div class="pp-org">${esc(CFG.ORG_NAME)}</div><div>เลขที่${dot(r.id, '32mm')}</div></div>
+      <div class="pp-head"><div>เล่มที่${dot(r.bookNo, '28mm')}</div><div class="pp-org"><img src="${LOGO_URL}" alt="" class="pp-logo">${esc(CFG.ORG_NAME)}</div><div>เลขที่${dot(r.id, '32mm')}</div></div>
       <div class="pp-title">ใบคำร้องขอ${esc(paperName(r.product) || 'กากตะกอนหม้อกรอง')}</div>
       <div class="pp-r">วันที่${dot(isNaN(d) ? '' : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }), '60mm')}</div>
       <p class="pp-l ind">ข้าพเจ้า${dot(r.name, '66mm')} เบอร์โทรศัพท์ติดต่อ${dot(r.phone, '32mm')}</p>
@@ -325,10 +325,16 @@
       <div class="pp-sign one"><div>ลงชื่อ${dot('', '55mm')}ผู้อนุมัติคำขอ<br>(${dot('', '50mm')})</div></div>
     </div>`;
   }
-  function printPaper(r) {
+  // โลโก้บริษัทบนใบคำร้อง — โหลดไว้ก่อน เพื่อให้ขึ้นทันทีตอนพิมพ์/สร้าง PDF
+  const LOGO_URL = new URL('assets/logo.png', location.href).href;
+  const logoImg = new Image(); logoImg.src = LOGO_URL;
+  const logoReady = () => (logoImg.decode ? logoImg.decode() : Promise.resolve()).catch(() => {});
+
+  async function printPaper(r) {
     let el = $('#print');
     if (!el) { el = document.createElement('div'); el.id = 'print'; document.body.appendChild(el); }
     el.innerHTML = paperHtml(r);
+    await logoReady();
     window.print();
   }
 
@@ -364,7 +370,7 @@
 
   // ใบคำร้อง → PDF หน้าตาเหมือนฉบับพิมพ์
   async function formPdf(r) {
-    await Promise.all([loadScript(JSPDF), loadScript(H2C)]);
+    await Promise.all([loadScript(JSPDF), loadScript(H2C), logoReady()]);
     const box = document.createElement('div');
     box.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;padding:45px 57px;background:#fff;color:#000';
     box.innerHTML = paperHtml(r);
