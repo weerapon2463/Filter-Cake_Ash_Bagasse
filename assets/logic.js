@@ -14,10 +14,11 @@ var FC_FIELDS = [
 var FC_JSON_FIELDS = ['docs', 'checks', 'history'];
 
 var FC_LOGIC_FACTORY = function (env) {
-  var TPR = env.tonsPerRai || 20, BATCH_MAX = env.batchMax || 30, SEASON = env.season || '2569/70';
-  var EDITABLE = ['product', 'name', 'phone', 'citizenId', 'bookNo', 'zone', 'address', 'landLocation', 'rai',
+  var TPR = env.tonsPerRai || 20, SEASON = env.season || '2569/70';
+  var EDITABLE = ['product', 'name', 'phone', 'citizenId', 'zone', 'address', 'landLocation', 'rai',
     'distanceKm', 'ownership', 'transport', 'truckType', 'plate', 'note'];
-  var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'filed', 'approved', 'done', 'rejected', 'cancelled'];
+  // จบที่แผนกสิ่งแวดล้อม: env_ok = เอกสารผ่าน = เสร็จ
+  var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'cancelled'];
   var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
   var UPLOAD_OPEN = ['submitted', 'zone_ok', 'fix'];
   var DOC_TYPES = ['form', 'idcard', 'house', 'farmer', 'deed', 'lease', 'consent', 'owner'];
@@ -89,8 +90,7 @@ var FC_LOGIC_FACTORY = function (env) {
     return {
       id: r.id, created: r.created, product: r.product, name: nm.slice(0, Math.max(3, Math.ceil(nm.length / 2))) + '***',
       zone: r.zone, rai: r.rai, tons: r.tons, ownership: r.ownership, status: r.status, fixReason: r.fixReason,
-      filedDate: r.filedDate, permitNo: r.permitNo, approvedDate: r.approvedDate, ticketNo: r.ticketNo,
-      deliveredTons: r.deliveredTons, doneDate: r.doneDate, docCount: names, updated: r.updated,
+      docCount: names, updated: r.updated,
       canUpload: UPLOAD_OPEN.indexOf(r.status) >= 0,
       history: (r.history || []).map(function (h) { return { t: h.t, a: h.a }; }),
     };
@@ -178,24 +178,10 @@ var FC_LOGIC_FACTORY = function (env) {
       }
       if (!rows.length) return fail('ไม่ได้เลือกรายการ');
       if (st === 'fix' && !str(x.fixReason)) return fail('ระบุสิ่งที่ต้องแก้ไข');
-      if (st === 'filed') {
-        var b = str(x.batchNo, 40); if (!b) return fail('ระบุเลขชุดยื่น');
-        var inBatch = db.rows.filter(function (r) { return r.batchNo === b && rows.indexOf(r) < 0; }).length;
-        if (inBatch + rows.length > BATCH_MAX) return fail('ชุด ' + b + ' มี ' + inBatch + ' รายแล้ว — ยื่นได้ครั้งละไม่เกิน ' + BATCH_MAX + ' ราย');
-      }
-      var today = env.now().slice(0, 10);
       rows.forEach(function (r) {
         r.status = st;
         if (st === 'fix') r.fixReason = str(x.fixReason, 500);
         if (st === 'zone_ok' || st === 'env_ok') r.fixReason = r.fixReason ? '(แก้แล้ว) ' + String(r.fixReason).replace(/^\(แก้แล้ว\) /, '') : '';
-        if (st === 'filed') { r.batchNo = str(x.batchNo, 40); r.filedDate = str(x.date) || today; }
-        if (st === 'approved') { if (x.permitNo) r.permitNo = str(x.permitNo, 60); r.approvedDate = str(x.date) || today; }
-        if (st === 'done') {
-          if (x.ticketNo) r.ticketNo = str(x.ticketNo, 60);
-          if (x.deliveredTons !== undefined && x.deliveredTons !== '') r.deliveredTons = parseFloat(x.deliveredTons) || 0;
-          if (x.trips !== undefined && x.trips !== '') r.trips = parseInt(x.trips, 10) || 0;
-          r.doneDate = str(x.date) || today;
-        }
         if (x.staffNote) r.staffNote = str(x.staffNote, 500);
         touch(db, r, u.name, 'สถานะ → ' + st + (st === 'fix' ? ': ' + r.fixReason : ''));
       });

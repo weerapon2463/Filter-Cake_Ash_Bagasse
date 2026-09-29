@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929i">
+<link rel="stylesheet" href="assets/style.css?v=20260929j">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -54,9 +54,7 @@
         <li>ชาวไร่ยื่นคำขอ (ออนไลน์ หรือผ่านหัวหน้าเขต) พร้อมเอกสาร</li>
         <li>หัวหน้าเขตตรวจเอกสาร รวบรวมส่งแผนกสิ่งแวดล้อม</li>
         <li>แผนกสิ่งแวดล้อมตรวจเอกสาร — ถ้าต้องแก้ไขจะแจ้งกลับผ่านเขต</li>
-        <li>แผนกสิ่งแวดล้อมยื่นเข้าระบบกรมโรงงานอุตสาหกรรม (ใช้เวลาประมาณ 45–60 วัน)</li>
-        <li>เมื่อได้รับอนุญาต แผนกสิ่งแวดล้อมพิมพ์ใบกำกับการขนส่ง ให้ผู้ขนส่งเซ็นรับทราบ</li>
-        <li>รับตั๋วนำออก (ยื่น รปภ. ก่อนออกโรงงาน / ยื่นที่จุดปล่อย) แล้วนำออกได้</li>
+        <li>แผนกสิ่งแวดล้อมตรวจเอกสารผ่าน — สถานะขึ้น <b>เสร็จ</b> (แผนกสิ่งแวดล้อมดำเนินการต่อ และแจ้งผลผ่านหัวหน้าเขต)</li>
       </ol>
     </div>
     <div class="card">
@@ -73,7 +71,7 @@
     <div class="card">
       <h3>ตรวจสถานะคำขอ</h3>
       <form id="checkForm" class="grid2">
-        <label>เลขที่คำขอ<input name="id" required placeholder="FC6970-0001" autocapitalize="characters"></label>
+        <label>เลขที่คำขอ<input name="id" required placeholder="2569-0001" inputmode="numeric"></label>
         <label>เบอร์โทรที่ใช้ยื่น<input name="phone" required inputmode="tel"></label>
         <div class="span2 actions"><button class="btn primary">ตรวจสถานะ</button></div>
       </form>
@@ -83,9 +81,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929i"></script>
-<script src="assets/logic.js?v=20260929i"></script>
-<script src="assets/app.js?v=20260929i"></script>
+<script src="assets/config.js?v=20260929j"></script>
+<script src="assets/logic.js?v=20260929j"></script>
+<script src="assets/app.js?v=20260929j"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -150,12 +148,7 @@
           <dt>เขต</dt><dd>${esc(r.zone)}</dd>
           <dt>จำนวน</dt><dd>${fmtNum(r.rai, 2)} ไร่ · ${fmtNum(r.tons, 1)} ตัน</dd>
           <dt>วันที่ยื่น</dt><dd>${fmtDate(r.created, true)}</dd>
-          ${r.filedDate ? `<dt>ยื่นกรมโรงงาน</dt><dd>${fmtDate(r.filedDate)}</dd>` : ''}
-          ${r.permitNo ? `<dt>หนังสืออนุญาต</dt><dd>${esc(r.permitNo)} (${fmtDate(r.approvedDate)})</dd>` : ''}
-          ${r.ticketNo ? `<dt>ตั๋วนำออก</dt><dd>${esc(r.ticketNo)}</dd>` : ''}
-          ${r.deliveredTons ? `<dt>นำออกแล้ว</dt><dd>${fmtNum(r.deliveredTons, 1)} ตัน (${fmtDate(r.doneDate)})</dd>` : ''}
         </dl>
-        ${r.status === 'approved' ? '<div class="alert">ได้รับอนุญาตแล้ว — ติดต่อแผนกสิ่งแวดล้อม/หัวหน้าเขตเพื่อรับตั๋วนำออก และเซ็นรับทราบใบกำกับการขนส่ง</div>' : ''}
         <h3 style="margin-top:18px">เอกสารแนบ</h3>
         <div>${need.map(d => {
           const n = (r.docCount || {})[d.id] || 0;

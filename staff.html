@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>จัดการคำขอสิ่งปฏิกูล</title>
-<meta name="description" content="หน้าเจ้าหน้าที่: หัวหน้าเขตและแผนกสิ่งแวดล้อม ตรวจเอกสาร จัดชุดยื่นกรมโรงงาน และบันทึกการนำออก">
+<meta name="description" content="หน้าเจ้าหน้าที่: หัวหน้าเขตและแผนกสิ่งแวดล้อม ตรวจเอกสาร และปิดคำขอเมื่อเอกสารผ่าน">
 <meta name="robots" content="noindex">
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929i">
+<link rel="stylesheet" href="assets/style.css?v=20260929j">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -35,7 +35,7 @@
   <section id="app" hidden>
     <div class="stats" data-stats></div>
     <div class="toolbar">
-      <label class="grow">ค้นหา<input id="q" placeholder="ชื่อ / เลขที่คำขอ / เบอร์ / ชุดยื่น"></label>
+      <label class="grow">ค้นหา<input id="q" placeholder="ชื่อ / เลขที่คำขอ / เบอร์ / เลขบัตร"></label>
       <label data-zone-filter>เขต<select id="fZone"><option value="">ทุกเขต</option></select></label>
       <label>ชนิด<select id="fProduct"><option value="">ทุกชนิด</option></select></label>
       <button class="btn" id="reload" title="โหลดใหม่">↻</button>
@@ -45,7 +45,7 @@
       <table>
         <thead><tr>
           <th><input type="checkbox" id="checkAll" aria-label="เลือกทั้งหมด"></th>
-          <th>เลขที่</th><th>ชื่อ-นามสกุล</th><th>เขต</th><th>ชนิด</th><th style="text-align:right">ไร่</th><th style="text-align:right">ตัน</th><th>เอกสาร</th><th>สถานะ</th><th>ชุดยื่น</th>
+          <th>เลขที่</th><th>ชื่อ-นามสกุล</th><th>เขต</th><th>ชนิด</th><th style="text-align:right">ไร่</th><th style="text-align:right">ตัน</th><th>เอกสาร</th><th>สถานะ</th>
         </tr></thead>
         <tbody data-rows></tbody>
       </table>
@@ -59,9 +59,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929i"></script>
-<script src="assets/logic.js?v=20260929i"></script>
-<script src="assets/app.js?v=20260929i"></script>
+<script src="assets/config.js?v=20260929j"></script>
+<script src="assets/logic.js?v=20260929j"></script>
+<script src="assets/app.js?v=20260929j"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -99,7 +99,7 @@
     load();
   }
   async function load() {
-    if (!rows.length) $('[data-rows]').innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center;padding:30px">กำลังโหลดข้อมูล…</td></tr>';
+    if (!rows.length) $('[data-rows]').innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">กำลังโหลดข้อมูล…</td></tr>';
     try { rows = (await api('list', { pin: me.pin })).rows; render(); }
     catch (x) { toast(x.message, true); if (/เข้าสู่ระบบ/.test(x.message)) $('#logout').click(); }
   }
@@ -114,17 +114,17 @@
     return rows.filter(r =>
       (!filter.status || r.status === filter.status) && (!filter.zone || String(r.zone) === filter.zone) &&
       (!filter.product || r.product === filter.product) &&
-      (!filter.q || [r.id, r.name, r.phone, r.landLocation, r.batchNo, r.citizenId].join(' ').toLowerCase().includes(filter.q))
+      (!filter.q || [r.id, r.name, r.phone, r.landLocation, r.citizenId].join(' ').toLowerCase().includes(filter.q))
     ).sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
   }
   function render() {
     const base = rows.filter(r => (!filter.zone || String(r.zone) === filter.zone) && (!filter.product || r.product === filter.product));
     const count = st => base.filter(r => r.status === st).length;
-    const tonsDone = base.filter(r => r.status === 'done').reduce((s, r) => s + num(r.deliveredTons || r.tons), 0);
+    const tonsDone = base.filter(r => r.status === 'env_ok').reduce((s, r) => s + num(r.tons), 0);
     $('[data-stats]').innerHTML =
       `<button class="stat ${!filter.status ? 'on' : ''}" data-st=""><b>${base.length}</b><span>ทั้งหมด</span></button>` +
       Object.entries(STATUS).map(([k, s]) => `<button class="stat ${filter.status === k ? 'on' : ''}" data-st="${k}"><b class="tone-${s.tone}">${count(k)}</b><span>${esc(s.short)}</span></button>`).join('') +
-      `<div class="stat"><b>${fmtNum(tonsDone)}</b><span>ตันที่นำออกแล้ว</span></div>`;
+      `<div class="stat"><b>${fmtNum(tonsDone)}</b><span>ตัน (เสร็จแล้ว)</span></div>`;
     $$('[data-st]').forEach(b => (b.onclick = () => { filter.status = b.dataset.st; selected.clear(); render(); }));
     const list = visible();
     [...selected].forEach(id => { if (!list.some(r => r.id === id)) selected.delete(id); });
@@ -134,8 +134,8 @@
       <td>${esc(r.name)}<br><small class="muted">${esc(r.phone)}</small></td>
       <td>${esc(r.zone)}</td><td>${esc(productName(r.product))}</td>
       <td style="text-align:right">${fmtNum(r.rai, 2)}</td><td style="text-align:right">${fmtNum(r.tons, 1)}</td>
-      <td>${docsDone(r)}</td><td>${statusBadge(r.status)}</td><td>${esc(r.batchNo || '')}</td></tr>`).join('') ||
-      '<tr><td colspan="10" class="muted" style="text-align:center;padding:30px">ไม่มีรายการ</td></tr>';
+      <td>${docsDone(r)}</td><td>${statusBadge(r.status)}</td></tr>`).join('') ||
+      '<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">ไม่มีรายการ</td></tr>';
     const sumR = list.reduce((s, r) => s + num(r.rai), 0), sumT = list.reduce((s, r) => s + num(r.tons), 0);
     $('[data-summary]').textContent = `แสดง ${list.length} ราย · ${fmtNum(sumR, 2)} ไร่ · ${fmtNum(sumT, 1)} ตัน`;
     $('#checkAll').checked = list.length > 0 && list.every(r => selected.has(r.id));
@@ -155,10 +155,8 @@
     if (me.role === 'zone') {
       if (all(['submitted', 'fix'])) a.push(['zone_ok', 'ส่งแผนกสิ่งแวดล้อม']);
     } else {
-      if (all(['submitted', 'zone_ok', 'fix'])) { a.push(['env_ok', 'เอกสารผ่าน']); a.push(['fix', 'ต้องแก้ไข']); }
-      if (all(['env_ok'])) a.push(['filed', 'ยื่นกรมโรงงาน (จัดชุด)']);
-      if (all(['filed'])) { a.push(['approved', 'ได้รับอนุญาต']); a.push(['rejected', 'ไม่อนุญาต']); }
-      if (all(['approved'])) a.push(['done', 'นำออกแล้ว']);
+      if (all(['submitted', 'zone_ok', 'fix'])) { a.push(['env_ok', 'เอกสารผ่าน → เสร็จ']); a.push(['fix', 'ต้องแก้ไข']); }
+      if (all(['env_ok'])) a.push(['fix', 'ย้อนกลับ: ต้องแก้ไข']);
     }
     return a;
   }
@@ -176,20 +174,11 @@
     $('[data-clear]', bar).onclick = () => { selected.clear(); render(); };
   }
 
-  function nextBatchNo() {
-    const yy = CFG.SEASON.slice(2, 4) + CFG.SEASON.slice(-2);
-    const nums = rows.map(r => String(r.batchNo || '')).filter(b => b.startsWith(yy + '/')).map(b => parseInt(b.split('/')[1], 10) || 0);
-    return yy + '/' + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0');
-  }
   function askStatus(ids, st) {
     const today = new Date().toISOString().slice(0, 10);
     const f = {
-      zone_ok: '', env_ok: '', rejected: '<label>หมายเหตุ<input name="staffNote"></label>',
+      zone_ok: '', env_ok: '',
       fix: '<label>สิ่งที่ต้องแก้ไข *<textarea name="fixReason" rows="3" required placeholder="เช่น สำเนาโฉนดยังไม่รับรองหน้า 2, บัตรชาวไร่หมดอายุ"></textarea></label>',
-      filed: `<label>เลขชุดยื่น *<input name="batchNo" value="${nextBatchNo()}" required></label><label>วันที่ยื่น<input type="date" name="date" value="${today}"></label>
-              <p class="hint">กรมโรงงานรับได้ครั้งละไม่เกิน ${CFG.BATCH_MAX} ราย${ids.length > CFG.BATCH_MAX ? ` — <b class="tone-red">เลือกไว้ ${ids.length} ราย เกินกำหนด</b>` : ''}</p>`,
-      approved: '<label>เลขที่หนังสืออนุญาต<input name="permitNo" placeholder="เช่น 2569-313"></label><label>วันที่อนุญาต<input type="date" name="date" value="' + today + '"></label>',
-      done: `<label>เลขที่ตั๋วนำออก<input name="ticketNo"></label>${ids.length === 1 ? '<label>นำออกจริง (ตัน)<input name="deliveredTons" type="number" step="0.01"></label><label>จำนวนเที่ยว<input name="trips" type="number" step="1"></label>' : ''}<label>วันที่นำออก<input type="date" name="date" value="${today}"></label>`,
     }[st] || '';
     const body = openDlg(`${STATUS[st].label} — ${ids.length} ราย`, `<form class="grid2" id="stForm"><div class="span2">${f || 'ยืนยันเปลี่ยนสถานะ'}</div>
       <div class="span2 actions"><button type="button" class="btn ghost" data-x>ยกเลิก</button><button class="btn primary">ยืนยัน</button></div></form>`);
@@ -217,16 +206,13 @@
         <dt>ชนิด</dt><dd>${esc(productName(r.product))}</dd>
         <dt>ชื่อ-นามสกุล</dt><dd>${esc(r.name)} · <a href="tel:${esc(r.phone)}">${esc(r.phone)}</a></dd>
         <dt>บัตรประชาชน</dt><dd>${esc(r.citizenId)}</dd>
-        <dt>เล่มที่ / เขต</dt><dd>${esc(r.bookNo || '–')} · เขต ${esc(r.zone)}</dd>
+        <dt>เขต</dt><dd>${esc(r.zone)}</dd>
         <dt>ที่อยู่</dt><dd>${esc(r.address)}</dd>
         <dt>ที่ดินตั้งอยู่</dt><dd>${esc(r.landLocation)}</dd>
         <dt>สิทธิ์ในที่ดิน</dt><dd>${esc((OWNERSHIP.find(o => o.id === r.ownership) || {}).label || '–')}</dd>
         <dt>จำนวน</dt><dd><b>${fmtNum(r.rai, 2)} ไร่ · ${fmtNum(r.tons, 1)} ตัน</b> · ระยะทาง ${esc(r.distanceKm || '–')} กม.</dd>
         <dt>ขนส่ง</dt><dd>${esc(r.transport)} · ${esc(r.truckType || '')} ${esc(r.plate || '')}</dd>
         ${r.note ? `<dt>หมายเหตุ</dt><dd>${esc(r.note)}</dd>` : ''}
-        ${r.batchNo ? `<dt>ชุดยื่น</dt><dd>${esc(r.batchNo)} (${fmtDate(r.filedDate)})</dd>` : ''}
-        ${r.permitNo || r.approvedDate ? `<dt>อนุญาต</dt><dd>${esc(r.permitNo || '')} ${fmtDate(r.approvedDate)}</dd>` : ''}
-        ${r.ticketNo || r.doneDate ? `<dt>นำออก</dt><dd>ตั๋ว ${esc(r.ticketNo || '–')} · ${r.deliveredTons ? fmtNum(r.deliveredTons, 1) + ' ตัน' : ''} ${r.trips ? r.trips + ' เที่ยว' : ''} · ${fmtDate(r.doneDate)}</dd>` : ''}
       </dl>
       <h3 style="margin-top:18px">เอกสาร (PDF) ${r.folderUrl ? `<a class="btn small" href="${esc(r.folderUrl)}" target="_blank" rel="noopener">📁 เปิดโฟลเดอร์</a>` : ''}</h3>
       <div class="docrow"><div><b>ใบคำร้อง</b><div class="files">${(r.docs.form || []).map(f => f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a>` : `<span class="muted">${esc(f.name)}</span>`).join(' ') || '<span class="muted">– ยังไม่มี</span>'}</div></div>
@@ -240,7 +226,7 @@
       <form class="checklist" id="chk">${STAFF_CHECKS.map(c => `<label><input type="checkbox" name="${c.id}" ${r.checks && r.checks[c.id] ? 'checked' : ''}> ${esc(c.label)}</label>`).join('')}
         <div class="actions"><button class="btn small">บันทึกการตรวจ</button></div></form>
       <h3 style="margin-top:18px">ดำเนินการ</h3>
-      <div class="cta">${actionsFor([r]).map(([st, lbl]) => `<button class="btn ${st === 'fix' || st === 'rejected' ? '' : 'primary'}" data-act="${st}">${esc(lbl)}</button>`).join('')}
+      <div class="cta">${actionsFor([r]).map(([st, lbl]) => `<button class="btn ${st === 'fix' ? '' : 'primary'}" data-act="${st}">${esc(lbl)}</button>`).join('')}
         ${editable ? '<button class="btn" data-edit>แก้ไขข้อมูล</button>' : ''}
         ${me.role === 'env' || ['submitted', 'fix', 'zone_ok'].includes(r.status) ? (r.status !== 'cancelled' ? '<button class="btn danger" data-act="cancelled">ยกเลิกคำขอ</button>' : '') : ''}
         <button class="btn" data-paper>🖨 ใบคำร้อง</button><button class="btn" data-print1>🖨 ใบปะหน้า</button></div>

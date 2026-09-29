@@ -7,7 +7,6 @@ var SHEET_REQ = 'คำขอ';
 var SHEET_USERS = 'ผู้ใช้';
 var SEASON = '2569/70';
 var TONS_PER_RAI = 20;
-var BATCH_MAX = 30;
 var WRITE_ACTIONS = ['submit', 'upload', 'save', 'checks', 'setStatus'];
 var ROOT_FOLDER_ID = '15C0mQHPmuD6Yy6KRKI7zo7DPHr8psBqQ'; // โฟลเดอร์ Drive ของโปรเจกต์ (Sheet อยู่ในนี้)
 // เดโมสาธารณะ = โปรเจกต์ Apps Script + Sheet แยก ที่มีไฟล์ Demo.gs บรรทัดเดียว: var DEMO_MODE = true;
@@ -19,7 +18,7 @@ var DEMO_USERS = [
   { pin: '555555', name: 'หัวหน้าเขต 5 (ทดลอง)', role: 'zone', zone: '5' },
 ];
 function uploadFolderName_() { return (isDemo_() ? 'DEMO ' : '') + 'เอกสารคำขอ ' + SEASON.replace('/', '-'); }
-// โครงสร้างโฟลเดอร์: เอกสารคำขอ 2569-70 / 01 ขี้หม้อกรอง / เขต 01 / FC6970-0001 ชื่อผู้ขอ / 00 ใบคำร้อง.pdf …
+// โครงสร้างโฟลเดอร์: เอกสารคำขอ 2569-70 / 01 ขี้หม้อกรอง / เขต 01 / 2569-0001 ชื่อผู้ขอ / 00 ใบคำร้อง.pdf …
 var PRODUCT_DIRS = { filtercake: '01 ขี้หม้อกรอง', leaf: '02 กากใบอ้อย', ash: '03 ขี้เถ้า' };
 var DOC_NAMES = {
   form: '00 ใบคำร้อง', idcard: '01 สำเนาบัตรประชาชน', house: '02 สำเนาทะเบียนบ้าน', farmer: '03 สำเนาทะเบียนเกษตรกร',
@@ -136,12 +135,13 @@ function logic_() {
   return FC_LOGIC_FACTORY({
     now: function () { return new Date().toISOString(); },
     users: users_,
-    tonsPerRai: TONS_PER_RAI, batchMax: BATCH_MAX, season: SEASON,
-    nextId: function () {
+    tonsPerRai: TONS_PER_RAI, season: SEASON,
+    nextId: function () { // ปี พ.ศ. + ลำดับ (เริ่มใหม่ทุกปี) เช่น 2569-0001
       var p = PropertiesService.getScriptProperties();
-      var n = Number(p.getProperty('SEQ') || 0) + 1;
-      p.setProperty('SEQ', String(n));
-      return 'FC' + SEASON.slice(2, 4) + SEASON.slice(-2) + '-' + ('000' + n).slice(-4);
+      var y = String(Number(Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy')) + 543);
+      var n = Number(p.getProperty('SEQ_' + y) || 0) + 1;
+      p.setProperty('SEQ_' + y, String(n));
+      return y + '-' + ('000' + n).slice(-4);
     },
     storeFile: function (r, docType, f, replaceFiles) {
       var dir = requestDir_(r);
@@ -165,17 +165,20 @@ function pinGuard_(p, res) {
   return null;
 }
 
+var DEMO_VER = '3'; // เพิ่มเลขเมื่อรูปแบบข้อมูลเปลี่ยน → เดโมล้างและสร้างตัวอย่างใหม่เองหนึ่งครั้ง
 function demoInit_() {
   var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('DEMO_READY') === '2') return;
+  var ready = props.getProperty('DEMO_READY');
+  if (ready === DEMO_VER) return;
+  if (ready) { resetDemo(); props.setProperty('DEMO_READY', DEMO_VER); return; }
   var lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
-    if (props.getProperty('DEMO_READY') === '2') return;
+    if (props.getProperty('DEMO_READY') === DEMO_VER) return;
     var ss = SpreadsheetApp.getActive(), us = ss.getSheetByName(SHEET_USERS);
     if (us) ss.deleteSheet(us); // แท็บผู้ใช้เดิมถูกสร้างแบบของจริง → สร้างใหม่ให้แสดง PIN ทดลอง
     props.deleteProperty('FOLDER_ID');
     setup();
-    props.setProperty('DEMO_READY', '2');
+    props.setProperty('DEMO_READY', DEMO_VER);
   } finally { lock.releaseLock(); }
 }
 
@@ -226,9 +229,9 @@ function fakeCid_(n) {
 function seedDemo_() {
   var db = loadDb_(), L = logic_(), env = { pin: '000000' }, z1 = { pin: '111111' };
   var people = [
-    ['นายสมชาย ตัวอย่าง', '1', 'filtercake', 12, 'env_ok'], ['นางสมศรี ทดลองดี', '1', 'filtercake', 25, 'filed'],
-    ['นายประยุทธ ไร่อ้อยงาม', '1', 'ash', 8, 'submitted'], ['นางบุญมี ใจเย็น', '5', 'filtercake', 40, 'approved'],
-    ['นายสุชาติ ขยันทำ', '5', 'leaf', 15, 'fix'], ['นางมาลี ดอกอ้อย', '5', 'ash', 30, 'done'],
+    ['นายสมชาย ตัวอย่าง', '1', 'filtercake', 12, 'env_ok'], ['นางสมศรี ทดลองดี', '1', 'filtercake', 25, 'zone_ok'],
+    ['นายประยุทธ ไร่อ้อยงาม', '1', 'ash', 8, 'submitted'], ['นางบุญมี ใจเย็น', '5', 'filtercake', 40, 'env_ok'],
+    ['นายสุชาติ ขยันทำ', '5', 'leaf', 15, 'fix'], ['นางมาลี ดอกอ้อย', '5', 'ash', 30, 'env_ok'],
     ['นายวิชัย ปลูกดี', '3', 'filtercake', 18, 'zone_ok'], ['นางสาวกัลยา ตัวอย่าง', 'เกษตรกร', 'leaf', 10, 'submitted'],
   ];
   people.forEach(function (x, i) {
@@ -237,12 +240,10 @@ function seedDemo_() {
       landLocation: 'ม.' + (i + 2) + ' ต.ท่าทอง อ.เมือง จ.พิษณุโลก', distanceKm: 3 + i, ownership: i % 3 === 1 ? 'lease' : 'own',
       transport: i % 2 ? 'รถผู้ขอ' : 'รถโรงงาน', truckType: i % 2 ? 'รถบรรทุก 10 ล้อ' : '', plate: i % 2 ? '80-' + (1000 + i) + ' พล.' : '' } });
     var id = res.id, st = x[4];
-    var path = { submitted: [], zone_ok: ['zone_ok'], fix: ['zone_ok', 'fix'], env_ok: ['zone_ok', 'env_ok'], filed: ['zone_ok', 'env_ok', 'filed'],
-      approved: ['zone_ok', 'env_ok', 'filed', 'approved'], done: ['zone_ok', 'env_ok', 'filed', 'approved', 'done'] }[st];
+    var path = { submitted: [], zone_ok: ['zone_ok'], fix: ['zone_ok', 'fix'], env_ok: ['zone_ok', 'env_ok'] }[st];
     path.forEach(function (to) {
       L.handle(db, 'setStatus', { pin: '000000', ids: [id], status: to, extra: {
-        fixReason: 'สำเนาโฉนดยังไม่รับรองสำเนาหน้า 2', batchNo: '6970/01', permitNo: '2569-313', ticketNo: '680210011024',
-        deliveredTons: x[3] * 20, trips: Math.ceil(x[3] * 20 / 15) } });
+        fixReason: 'สำเนาโฉนดยังไม่รับรองสำเนาหน้า 2' } });
     });
   });
   saveDb_(db, db.rows.map(function (r) { return r.id; }));
@@ -254,7 +255,7 @@ function resetDemo() {
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_REQ);
     if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
     var props = PropertiesService.getScriptProperties(), all = props.getProperties();
-    for (var k in all) if (k === 'SEQ' || k.indexOf('DIR_') === 0) props.deleteProperty(k);
+    for (var k in all) if (k.indexOf('SEQ') === 0 || k.indexOf('DIR_') === 0) props.deleteProperty(k);
     var root = folder_(), it = root.getFolders();
     while (it.hasNext()) { var f = it.next(); var sub = f.getFolders(); while (sub.hasNext()) sub.next().setTrashed(true); }
     seedDemo_();

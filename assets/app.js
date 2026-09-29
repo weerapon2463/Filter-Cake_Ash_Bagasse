@@ -7,14 +7,10 @@
     submitted: { label: 'ยื่นคำขอแล้ว รอหัวหน้าเขตตรวจ', short: 'รอเขตตรวจ', tone: 'gray', step: 1 },
     zone_ok:   { label: 'เขตตรวจแล้ว ส่งแผนกสิ่งแวดล้อม', short: 'ส่งสิ่งแวดล้อม', tone: 'blue', step: 2 },
     fix:       { label: 'ต้องแก้ไขเอกสาร', short: 'ต้องแก้ไข', tone: 'amber', step: 2 },
-    env_ok:    { label: 'เอกสารผ่าน รอยื่นกรมโรงงาน', short: 'เอกสารผ่าน', tone: 'teal', step: 3 },
-    filed:     { label: 'ยื่นกรมโรงงานแล้ว รอผลพิจารณา (ประมาณ 45–60 วัน)', short: 'ยื่นกรมโรงงาน', tone: 'violet', step: 4 },
-    approved:  { label: 'ได้รับอนุญาต รอรับตั๋วนำออก', short: 'ได้รับอนุญาต', tone: 'green', step: 5 },
-    done:      { label: 'นำออกแล้ว', short: 'นำออกแล้ว', tone: 'green', step: 6 },
-    rejected:  { label: 'ไม่ได้รับอนุญาต', short: 'ไม่อนุญาต', tone: 'red', step: 5 },
+    env_ok:    { label: 'เสร็จ — แผนกสิ่งแวดล้อมตรวจเอกสารผ่านแล้ว', short: 'เสร็จ', tone: 'green', step: 4 },
     cancelled: { label: 'ยกเลิก', short: 'ยกเลิก', tone: 'red', step: 0 },
   };
-  const STEPS = ['ยื่นคำขอ', 'เขตตรวจ', 'สิ่งแวดล้อมตรวจ', 'ยื่นกรมโรงงาน', 'อนุญาต', 'นำออก'];
+  const STEPS = ['ยื่นคำขอ', 'เขตตรวจ', 'สิ่งแวดล้อมตรวจ', 'เสร็จ'];
 
   // ---------- เอกสารแนบ ----------
   const OWNERSHIP = [
@@ -138,9 +134,13 @@
     const logic = window.FC_LOGIC_FACTORY({
       now: () => new Date().toISOString(),
       users: () => USERS,
-      nextId(db) { db.seq++; return 'FC' + CFG.SEASON.slice(2, 4) + CFG.SEASON.slice(-2) + '-' + String(db.seq).padStart(4, '0'); },
+      nextId(db) { // ปี พ.ศ. + ลำดับ (เริ่มใหม่ทุกปี) เช่น 2569-0001
+        const y = String(new Date().getFullYear() + 543) + '-';
+        const n = db.rows.reduce((m, r) => String(r.id).startsWith(y) ? Math.max(m, parseInt(String(r.id).slice(y.length), 10) || 0) : m, 0);
+        return y + String(n + 1).padStart(4, '0');
+      },
       storeFile: (id, docType, f) => ({ name: f.name, url: '', size: Math.round(f.data.length * 0.75) }),
-      tonsPerRai: CFG.TONS_PER_RAI, batchMax: CFG.BATCH_MAX, season: CFG.SEASON,
+      tonsPerRai: CFG.TONS_PER_RAI, season: CFG.SEASON,
     });
     return {
       async call(action, p) {
@@ -165,7 +165,7 @@
     <form class="reqform paper" novalidate>
       <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
       <div class="p-head">
-        <div class="p-no"><span>เล่มที่</span><i>${esc(v.bookNo || '')}</i></div>
+        <div></div>
         <div class="p-org"><img src="assets/logo.png" alt="" class="p-logo">${esc(CFG.ORG_NAME)}</div>
         <div class="p-no"><span>เลขที่</span><i>${esc(v.id || '(ออกให้อัตโนมัติ)')}</i></div>
       </div>
@@ -213,7 +213,6 @@
         <div class="grid2">
           <label>รถขนส่ง<select name="transport">${opt(CFG.TRANSPORT, v.transport || CFG.TRANSPORT[0])}</select></label>
           <label>ระยะทางจากโรงงาน (กม.)<input name="distanceKm" type="number" min="0" step="0.1" value="${esc(v.distanceKm)}" inputmode="decimal"></label>
-          ${staff ? `<label>เล่มที่ (ใบคำร้องกระดาษ)<input name="bookNo" value="${esc(v.bookNo)}"></label>` : ''}
           <label class="span2">หมายเหตุ<textarea name="note" rows="2">${esc(v.note)}</textarea></label>
         </div>
       </details>
@@ -263,7 +262,7 @@
       try {
         const data = {
           id: v.id, product: fd.product, name: fd.name.trim(), phone: digits(fd.phone), citizenId: digits(fd.citizenId),
-          zone: fd.zone, bookNo: fd.bookNo, address: fd.address, rai: num(fd.rai),
+          zone: fd.zone, address: fd.address, rai: num(fd.rai),
           landLocation: fd.landLocation, distanceKm: fd.distanceKm, ownership: fd.ownership, transport: fd.transport,
           truckType: fd.truckType, plate: fd.plate, note: fd.note, website: fd.website,
         };
@@ -290,9 +289,9 @@
 
   function stepper(st) {
     const s = STATUS[st] || {};
-    if (st === 'cancelled' || st === 'rejected') return `<div class="stepper-note tone-red">${esc(s.label)}</div>`;
+    if (st === 'cancelled') return `<div class="stepper-note tone-red">${esc(s.label)}</div>`;
     return `<ol class="stepper">${STEPS.map((name, i) => {
-      const n = i + 1, cls = n < s.step || st === 'done' ? 'done' : n === s.step ? (st === 'fix' ? 'warn' : 'cur') : '';
+      const n = i + 1, cls = n < s.step || st === 'env_ok' ? 'done' : n === s.step ? (st === 'fix' ? 'warn' : 'cur') : '';
       return `<li class="${cls}"><span>${n}</span>${esc(name)}</li>`;
     }).join('')}</ol>`;
   }
@@ -303,7 +302,7 @@
     const d = new Date(r.created || Date.now());
     const need = docsFor(r.ownership || 'own');
     return `<div class="pp">
-      <div class="pp-head"><div>เล่มที่${dot(r.bookNo, '28mm')}</div><div class="pp-org"><img src="${LOGO_URL}" alt="" class="pp-logo">${esc(CFG.ORG_NAME)}</div><div>เลขที่${dot(r.id, '32mm')}</div></div>
+      <div class="pp-head"><div></div><div class="pp-org"><img src="${LOGO_URL}" alt="" class="pp-logo">${esc(CFG.ORG_NAME)}</div><div>เลขที่${dot(r.id, '32mm')}</div></div>
       <div class="pp-title">ใบคำร้องขอ${esc(paperName(r.product) || 'กากตะกอนหม้อกรอง')}</div>
       <div class="pp-r">วันที่${dot(isNaN(d) ? '' : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }), '60mm')}</div>
       <p class="pp-l ind">ข้าพเจ้า${dot(r.name, '66mm')} เบอร์โทรศัพท์ติดต่อ${dot(r.phone, '32mm')}</p>
