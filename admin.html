@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>หลังบ้าน ระบบคำขอสิ่งปฏิกูล</title>
+<meta name="description" content="ผู้ดูแลระบบ: รายงาน ผู้ใช้และ PIN ตั้งค่าระบบ และบันทึกการใช้งาน">
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=20260929x">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <img class="logo" src="assets/logo.png" alt="น้ำตาลพิษณุโลก">
+  <div><h1>หลังบ้าน<small data-who>ผู้ดูแลระบบ</small></h1></div>
+  <div class="sp"></div>
+  <a class="btn small" href="staff.html">📋 จัดการคำขอ</a>
+  <a class="btn small" href="index.html">หน้าผู้ขอ</a>
+  <button class="btn small" id="logout" hidden>ออกจากระบบ</button>
+</div></header>
+
+<main class="wrap">
+  <section id="login" class="card login">
+    <h3>เข้าสู่ระบบผู้ดูแลระบบ</h3>
+    <form id="loginForm">
+      <label>รหัส PIN 6 หลัก<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+      <div class="actions"><button class="btn primary">เข้าสู่ระบบ</button></div>
+    </form>
+    <p class="hint">เฉพาะบัญชีบทบาท "ผู้ดูแลระบบ" — เจ้าหน้าที่ทั่วไปใช้หน้า <a href="staff.html">จัดการคำขอ</a></p>
+    <p class="hint" data-demo-hint hidden>โหมดทดลอง: ผู้ดูแลระบบ <b>999999</b></p>
+  </section>
+
+  <section id="app" hidden>
+    <nav class="tabs" aria-label="เมนูหลังบ้าน">
+      <button class="btn on" data-tab="report">📊 รายงาน</button>
+      <button class="btn" data-tab="users">👥 ผู้ใช้</button>
+      <button class="btn" data-tab="settings">⚙️ ตั้งค่า</button>
+      <button class="btn" data-tab="log">📜 บันทึกการใช้งาน</button>
+    </nav>
+    <div data-pane="report"></div>
+    <div data-pane="users" hidden></div>
+    <div data-pane="settings" hidden></div>
+    <div data-pane="log" hidden></div>
+  </section>
+</main>
+<footer id="footer"></footer>
+
+<dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
+
+<script src="assets/config.js?v=20260929x"></script>
+<script src="assets/logic.js?v=20260929x"></script>
+<script src="assets/app.js?v=20260929x"></script>
+<script>
+(function () {
+  const { CFG, STATUS, ROLE_LABEL, $, $$, esc, fmtNum, fmtDate, num, productName, toast, api } = FC;
+  FC.footer();
+  if (FC.DEMO) $('[data-demo-hint]').hidden = false;
+
+  let me = null, rows = null;
+  const dlg = $('#dlg');
+  $('[data-close]', dlg).onclick = () => dlg.close();
+  function openDlg(title, html) { $('[data-title]', dlg).textContent = title; $('[data-body]', dlg).innerHTML = html; if (!dlg.open) dlg.showModal(); return $('[data-body]', dlg); }
+  const pane = n => $(`[data-pane="${n}"]`);
+  const busy = n => (pane(n).innerHTML = '<div class="card muted">กำลังโหลด…</div>');
+  const fail = (n, x) => { pane(n).innerHTML = `<div class="card"><b class="tone-red">${esc(x.message)}</b></div>`; if (/เข้าสู่ระบบ/.test(x.message)) $('#logout').click(); };
+
+  // ---------- เข้าสู่ระบบ (ใช้ร่วมกับหน้าจัดการคำขอ — ย้ายหน้าไปมาไม่ต้องใส่ PIN ใหม่) ----------
+  const SKEY = FC.DEMO ? 'fc-staff-demo' : 'fc-staff';
+  try { const s = JSON.parse(sessionStorage.getItem(SKEY)); if (s) start(s); } catch {}
+  $('#loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pin = e.target.pin.value.replace(/\D/g, ''), btn = $('button', e.target);
+    btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ…';
+    const slow = setTimeout(() => (btn.textContent = 'กำลังเชื่อมต่อเซิร์ฟเวอร์ (ครั้งแรกอาจใช้ ~10 วินาที)…'), 3000);
+    try {
+      const { user } = await api('login', { pin }); user.pin = pin;
+      try { sessionStorage.setItem(SKEY, JSON.stringify(user)); } catch {}
+      start(user);
+    } catch (x) { toast(x.message, true); }
+    finally { clearTimeout(slow); btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ'; }
+  });
+  $('#logout').onclick = () => { try { sessionStorage.removeItem(SKEY); } catch {} location.reload(); };
+
+  function start(u) {
+    $('#logout').hidden = false;
+    if (u.role !== 'admin') {
+      $('#login').innerHTML = `<h3>บัญชีนี้ไม่ใช่ผู้ดูแลระบบ</h3><p>${esc(u.name)} · ${esc(ROLE_LABEL[u.role] || u.role)}</p>
+        <p><a class="btn primary" href="staff.html${FC.DEMO ? '?demo=1' : ''}">ไปหน้าจัดการคำขอ</a></p>`;
+      return;
+    }
+    me = u;
+    $('#login').hidden = true; $('#app').hidden = false;
+    $('[data-who]').textContent = u.name + ' · ผู้ดูแลระบบ';
+    const t = (location.hash || '').slice(1);
+    show(['report', 'users', 'settings', 'log'].includes(t) ? t : 'report');
+  }
+  function show(tab) {
+    $$('[data-pane]').forEach(p => (p.hidden = p.dataset.pane !== tab));
+    $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    history.replaceState(null, '', location.search + '#' + tab);
+    ({ report: loadReport, users: loadUsers, settings: drawSettings, log: loadLog })[tab]();
+  }
+  $$('[data-tab]').forEach(b => (b.onclick = () => show(b.dataset.tab)));
+
+  // ---------- 📊 รายงาน ----------
+  async function loadReport(force) {
+    if (!rows || force) {
+      busy('report');
+      try { rows = (await api('list', { pin: me.pin })).rows; } catch (x) { return fail('report', x); }
+    }
+    drawReport();
+  }
+  let season = '';
+  function drawReport() {
+    const seasons = [...new Set(rows.map(r => r.season).filter(Boolean))].sort().reverse();
+    if (season === '' && seasons.includes(CFG.SEASON)) season = CFG.SEASON;
+    const list = rows.filter(r => !season || r.season === season);
+    const live = list.filter(r => r.status !== 'cancelled');
+    const sum = (l, k) => l.reduce((s, r) => s + num(r[k]), 0);
+    const done = live.filter(r => r.status === 'env_ok');
+    const zones = [...new Set(CFG.ZONES.concat(live.map(r => String(r.zone))))].filter(z => live.some(r => String(r.zone) === z));
+    const prods = CFG.PRODUCTS;
+    const cell = l => l.length ? `${fmtNum(l.length)} ราย<br><small class="muted">${fmtNum(sum(l, 'rai'), 2)} ไร่ · ${fmtNum(sum(l, 'tons'), 1)} ตัน</small>` : '<span class="muted">–</span>';
+    const inZone = z => live.filter(r => String(r.zone) === z);
+    pane('report').innerHTML = `
+      <div class="toolbar">
+        <label>ปีการผลิต<select id="rSeason"><option value="">ทุกปี</option>${seasons.map(s => `<option ${s === season ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+        <button class="btn" id="rReload" title="โหลดใหม่">↻</button>
+        <span class="sp"></span>
+        <button class="btn" id="rCsvSum">⬇ CSV สรุปตามเขต</button>
+        <button class="btn" id="rCsvAll">⬇ CSV รายการทั้งหมด</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>${fmtNum(live.length)}</b><span>คำขอ (ไม่นับยกเลิก)</span></div>
+        <div class="stat"><b>${fmtNum(sum(live, 'rai'), 2)}</b><span>ไร่</span></div>
+        <div class="stat"><b>${fmtNum(sum(live, 'tons'), 1)}</b><span>ตันที่ขอ</span></div>
+        <div class="stat"><b class="tone-green">${fmtNum(done.length)}</b><span>เสร็จ · ${fmtNum(sum(done, 'tons'), 1)} ตัน</span></div>
+        <div class="stat"><b class="tone-red">${fmtNum(list.length - live.length)}</b><span>ยกเลิก</span></div>
+      </div>
+      <div class="card"><h3>ตามสถานะ</h3><div class="table-wrap"><table class="rep">
+        <thead><tr><th>สถานะ</th><th>ราย</th><th>ไร่</th><th>ตัน</th></tr></thead>
+        <tbody>${Object.entries(STATUS).map(([k, s]) => { const l = list.filter(r => r.status === k);
+          return `<tr><td><span class="badge tone-${s.tone}">${esc(s.short)}</span></td><td>${fmtNum(l.length)}</td><td>${fmtNum(sum(l, 'rai'), 2)}</td><td>${fmtNum(sum(l, 'tons'), 1)}</td></tr>`; }).join('')}</tbody>
+      </table></div></div>
+      <div class="card"><h3>ตามเขต × ชนิด <small class="muted">(ไม่นับยกเลิก)</small></h3><div class="table-wrap"><table class="rep">
+        <thead><tr><th>เขต</th>${prods.map(p => `<th>${esc(p.short)}</th>`).join('')}<th>รวม</th></tr></thead>
+        <tbody>${zones.map(z => `<tr><td>${esc(z)}</td>${prods.map(p => `<td>${cell(inZone(z).filter(r => r.product === p.id))}</td>`).join('')}<td><b>${cell(inZone(z))}</b></td></tr>`).join('') ||
+          `<tr><td colspan="${prods.length + 2}" class="muted" style="text-align:center">ไม่มีข้อมูล</td></tr>`}</tbody>
+        <tfoot><tr><td>รวม</td>${prods.map(p => `<td>${cell(live.filter(r => r.product === p.id))}</td>`).join('')}<td>${cell(live)}</td></tr></tfoot>
+      </table></div></div>`;
+    $('#rSeason').onchange = e => { season = e.target.value; drawReport(); };
+    $('#rReload').onclick = () => loadReport(true);
+    $('#rCsvAll').onclick = () => FC.exportRequests(list, `คำขอสิ่งปฏิกูล-${season.replace('/', '-') || 'ทุกปี'}.csv`);
+    $('#rCsvSum').onclick = () => {
+      const head = ['เขต'].concat(...prods.map(p => [p.short + ' (ราย)', p.short + ' (ไร่)', p.short + ' (ตัน)']), ['รวม (ราย)', 'รวม (ไร่)', 'รวม (ตัน)']);
+      const line = (name, l) => [name].concat(...prods.map(p => { const x = l.filter(r => r.product === p.id); return [x.length, sum(x, 'rai'), sum(x, 'tons')]; }), [l.length, sum(l, 'rai'), sum(l, 'tons')]);
+      FC.downloadCsv([head].concat(zones.map(z => line('เขต ' + z, inZone(z))), [line('รวม', live)]), `สรุปตามเขต-${season.replace('/', '-') || 'ทุกปี'}.csv`);
+    };
+  }
+
+  // ---------- 👥 ผู้ใช้ ----------
+  async function loadUsers() {
+    busy('users');
+    let users;
+    try { users = (await api('adminUsers', { pin: me.pin })).users; } catch (x) { return fail('users', x); }
+    pane('users').innerHTML = `<div class="toolbar"><span class="hint grow">PIN ไม่แสดงในหน้านี้ — ถ้าผู้ใช้ลืม ให้กด "ตั้ง PIN ใหม่" แล้วแจ้ง PIN ใหม่ให้เจ้าตัว</span>
+        <button class="btn primary" id="uAdd">+ เพิ่มผู้ใช้</button></div>
+      <div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>บทบาท</th><th>เขต</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody>${users.map((u, i) => `<tr><td>${esc(u.name)}</td><td>${esc(ROLE_LABEL[u.role] || u.role)}</td><td>${esc(u.zone || '–')}</td>
+        <td>${u.active ? '<span class="badge tone-green">ใช้งาน</span>' : '<span class="badge tone-gray">ปิด</span>'}</td>
+        <td style="white-space:nowrap">${u.locked ? '<small class="muted">บัญชีตัวอย่าง (แก้ไม่ได้)</small>' :
+          `<button class="btn small" data-edit="${i}">แก้ไข</button><button class="btn small" data-reset="${i}">ตั้ง PIN ใหม่</button><button class="btn small danger" data-del="${i}">ลบ</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+    $('#uAdd').onclick = () => userForm({ role: 'zone', active: true });
+    $$('[data-edit]').forEach(b => (b.onclick = () => userForm(users[+b.dataset.edit])));
+    $$('[data-reset]').forEach(b => (b.onclick = () => {
+      const u = users[+b.dataset.reset];
+      confirm(`ตั้ง PIN ใหม่ให้ ${u.name}`, 'PIN เดิมจะใช้ไม่ได้ทันที', 'ตั้ง PIN ใหม่', async () => showPin(u.name, (await api('userReset', { pin: me.pin, row: u.row })).pin));
+    }));
+    $$('[data-del]').forEach(b => (b.onclick = () => {
+      const u = users[+b.dataset.del];
+      confirm(`ลบผู้ใช้ ${u.name}`, 'ลบออกจากระบบ — ถ้าแค่พักการใช้งาน ใช้ "แก้ไข" แล้วเอาติ๊ก "ใช้งาน" ออกแทน', 'ลบ', async () => { await api('userDelete', { pin: me.pin, row: u.row }); toast('ลบแล้ว'); dlg.close(); loadUsers(); }, true);
+    }));
+  }
+  function userForm(u) {
+    const body = openDlg(u.row ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้', `<form class="grid2" id="uf">
+      <label class="span2">ชื่อ-นามสกุล / ตำแหน่ง *<input name="name" value="${esc(u.name)}" required></label>
+      <label>บทบาท<select name="role">${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+      <label data-zone>เขต<select name="zone"><option value="">– เลือก –</option>${CFG.ZONES.map(z => `<option ${String(u.zone) === z ? 'selected' : ''}>${esc(z)}</option>`).join('')}</select></label>
+      ${u.row ? `<label class="span2 consent"><input type="checkbox" name="active" ${u.active ? 'checked' : ''}> ใช้งาน (เอาออก = พักบัญชี เข้าระบบไม่ได้)</label>` : ''}
+      <p class="span2 hint">หัวหน้าเขต = เห็น/ตรวจเฉพาะเขตตัวเอง · แผนกสิ่งแวดล้อม = ทุกเขต ปิดคำขอได้ · ผู้ดูแลระบบ = ทุกอย่าง รวมหน้านี้</p>
+      <div class="span2 actions"><button type="button" class="btn ghost" data-x>ยกเลิก</button><button class="btn primary">${u.row ? 'บันทึก' : 'เพิ่ม และออก PIN'}</button></div></form>`);
+    const f = $('#uf', body), zoneLbl = $('[data-zone]', body);
+    const sync = () => (zoneLbl.hidden = f.role.value !== 'zone');
+    f.role.onchange = sync; sync();
+    $('[data-x]', body).onclick = () => dlg.close();
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = { row: u.row, name: f.name.value, role: f.role.value, zone: f.zone.value, active: u.row ? f.active.checked : true };
+      const b = $('button.primary', f); b.disabled = true;
+      try {
+        const res = await api('userSave', { pin: me.pin, data });
+        if (res.pin) showPin(data.name, res.pin); else { toast('บันทึกแล้ว'); dlg.close(); }
+        loadUsers();
+      } catch (x) { toast(x.message, true); b.disabled = false; }
+    });
+  }
+  function showPin(name, pin) {
+    const body = openDlg('PIN ของ ' + name, `<p>จด PIN นี้แล้วแจ้งเจ้าตัว — <b>ระบบจะไม่แสดงอีก</b> (ลืมให้ตั้งใหม่)</p>
+      <div class="pinshow">${esc(pin)}</div><div class="actions"><button class="btn primary" data-x>จดแล้ว ปิด</button></div>`);
+    $('[data-x]', body).onclick = () => dlg.close();
+    loadUsers();
+  }
+  function confirm(title, text, okText, run, danger) {
+    const body = openDlg(title, `<p>${esc(text)}</p><div class="actions"><button class="btn ghost" data-x>ยกเลิก</button><button class="btn ${danger ? 'danger' : 'primary'}" data-ok>${esc(okText)}</button></div>`);
+    $('[data-x]', body).onclick = () => dlg.close();
+    $('[data-ok]', body).onclick = async e => {
+      e.target.disabled = true;
+      try { await run(); } catch (x) { toast(x.message, true); e.target.disabled = false; }
+    };
+  }
+
+  // ---------- ⚙️ ตั้งค่า ----------
+  async function drawSettings() {
+    busy('settings');
+    await FC.configReady;
+    const lines = a => (a || []).join('\n');
+    pane('settings').innerHTML = `<form class="card setform grid2" id="sf">
+      <h3 class="span2">การรับคำขอ</h3>
+      <label class="span2 consent"><input type="checkbox" name="OPEN" ${CFG.OPEN !== false ? 'checked' : ''}> เปิดรับคำขอออนไลน์ (เอาออก = ชาวไร่ยื่นเองไม่ได้ เจ้าหน้าที่ยังคีย์แทนได้)</label>
+      <label class="span2">ข้อความเมื่อปิดรับ<input name="CLOSED_MSG" value="${esc(CFG.CLOSED_MSG)}" placeholder="เช่น ปิดรับปีนี้แล้ว เปิดอีกครั้ง ส.ค. 70"></label>
+      <label class="span2">ประกาศบนหน้าแรก (เว้นว่าง = ไม่แสดง)<textarea name="ANNOUNCE" rows="2">${esc(CFG.ANNOUNCE)}</textarea></label>
+      <h3 class="span2">ข้อมูลหลัก</h3>
+      <label>ปีการผลิต<input name="SEASON" value="${esc(CFG.SEASON)}" placeholder="2569/70"></label>
+      <label>ตัน/ไร่ (ตามกฎหมาย)<input name="TONS_PER_RAI" type="number" min="1" step="0.5" value="${esc(CFG.TONS_PER_RAI)}"></label>
+      <label>เบอร์ติดต่อ<input name="CONTACT_TEL" value="${esc(CFG.CONTACT_TEL)}"></label>
+      <label>ทะเบียนโรงงานเลขที่<input name="FACTORY_REG" value="${esc(CFG.FACTORY_REG)}"></label>
+      <label class="span2">วัตถุประสงค์ (บนใบคำร้อง)<input name="PURPOSE" value="${esc(CFG.PURPOSE)}"></label>
+      <label class="span2">รายชื่อเขต <small class="muted">(คั่นด้วย , หรือขึ้นบรรทัดใหม่)</small><textarea name="ZONES" rows="2">${esc((CFG.ZONES || []).join(', '))}</textarea></label>
+      <label class="span2">ปฏิทินรับเรื่อง <small class="muted">(บรรทัดละรายการ: กิจกรรม | วันที่)</small><textarea name="CALENDAR" rows="7">${esc(lines((CFG.CALENDAR || []).map(([a, d]) => a + ' | ' + d)))}</textarea></label>
+      <label class="span2">เงื่อนไขทางบริษัท <small class="muted">(บรรทัดละข้อ — พิมพ์บนใบคำร้อง)</small><textarea name="CONDITIONS" rows="7">${esc(lines(CFG.CONDITIONS))}</textarea></label>
+      <p class="span2 hint">เปลี่ยนปีการผลิต = คำขอใหม่เก็บเอกสารในโฟลเดอร์ปีใหม่ และตรวจคำขอซ้ำเฉพาะภายในปีนั้น (คำขอเก่ายังอยู่ ดูรายงานแยกปีได้)</p>
+      <div class="span2 actions"><button class="btn primary">บันทึกการตั้งค่า</button></div></form>`;
+    $('#sf').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target, split = v => v.split(/\n/).map(x => x.trim()).filter(Boolean);
+      const data = {
+        OPEN: f.OPEN.checked, CLOSED_MSG: f.CLOSED_MSG.value, ANNOUNCE: f.ANNOUNCE.value,
+        SEASON: f.SEASON.value.trim(), TONS_PER_RAI: num(f.TONS_PER_RAI.value), CONTACT_TEL: f.CONTACT_TEL.value,
+        FACTORY_REG: f.FACTORY_REG.value, PURPOSE: f.PURPOSE.value,
+        ZONES: f.ZONES.value.split(/[,\n]/).map(x => x.trim()).filter(Boolean),
+        CALENDAR: split(f.CALENDAR.value).map(l => { const i = l.lastIndexOf('|'); return i < 0 ? [l, ''] : [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }),
+        CONDITIONS: split(f.CONDITIONS.value),
+      };
+      if (!data.SEASON) return toast('กรอกปีการผลิต', true);
+      if (!(data.TONS_PER_RAI > 0)) return toast('ตัน/ไร่ไม่ถูกต้อง', true);
+      if (!data.ZONES.length) return toast('ต้องมีอย่างน้อย 1 เขต', true);
+      const b = $('button.primary', f); b.disabled = true; b.textContent = 'กำลังบันทึก…';
+      try { const res = await api('settingsSave', { pin: me.pin, data }); FC.setSettings(res.settings); toast('บันทึกการตั้งค่าแล้ว — หน้าเว็บทุกเครื่องใช้ค่าใหม่เมื่อเปิดครั้งถัดไป'); }
+      catch (x) { toast(x.message, true); }
+      finally { b.disabled = false; b.textContent = 'บันทึกการตั้งค่า'; }
+    });
+  }
+
+  // ---------- 📜 บันทึกการใช้งาน ----------
+  async function loadLog() {
+    busy('log');
+    let list;
+    try { list = (await api('log', { pin: me.pin, limit: 1000 })).rows; } catch (x) { return fail('log', x); }
+    pane('log').innerHTML = `<div class="toolbar"><label class="grow">ค้นหา<input id="lq" placeholder="ชื่อ / การกระทำ / เลขที่คำขอ"></label><button class="btn" id="lReload">↻</button>
+        <button class="btn" id="lCsv">⬇ CSV</button></div>
+      <p class="hint">แสดงล่าสุด ${fmtNum(list.length)} รายการ (ทั้งหมดอยู่ในแท็บ "บันทึกการใช้งาน" ของ Google Sheet) · บันทึก: ยื่น/แก้ไข/ตรวจ/เปลี่ยนสถานะ/แนบ-ลบไฟล์/เปิดดูไฟล์/เข้าสู่ระบบ/ใส่ PIN ผิด/งานหลังบ้าน</p>
+      <div class="table-wrap"><table class="logtbl"><thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead><tbody data-l></tbody></table></div>`;
+    const draw = q => ($('[data-l]').innerHTML = list.filter(r => !q || r.join(' ').toLowerCase().includes(q)).slice(0, 500).map(([t, who, role, a, d]) =>
+      `<tr><td style="white-space:nowrap">${fmtDate(t, true)}</td><td>${esc(who)}${role ? `<br><small class="muted">${esc(ROLE_LABEL[role] || role)}</small>` : ''}</td>
+        <td>${/PIN ผิด|ลบ/.test(a) ? `<b class="tone-red">${esc(a)}</b>` : esc(a)}</td><td>${esc(d)}</td></tr>`).join('') ||
+      '<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">ไม่มีรายการ</td></tr>');
+    draw('');
+    $('#lq').oninput = e => draw(e.target.value.trim().toLowerCase());
+    $('#lReload').onclick = loadLog;
+    $('#lCsv').onclick = () => FC.downloadCsv([['เวลา', 'ผู้ใช้', 'บทบาท', 'การกระทำ', 'รายละเอียด']].concat(list), `บันทึกการใช้งาน-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+})();
+</script>
+</body>
+</html>

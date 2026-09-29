@@ -47,7 +47,9 @@ var FC_LOGIC_FACTORY = function (env) {
     for (var i = 0; i < us.length; i++) if (String(us[i].pin) === pin) return us[i];
     return null;
   }
-  function canSee(u, row) { return u.role === 'env' || String(row.zone) === String(u.zone); }
+  // บทบาท: admin (ผู้ดูแลระบบ = ทำได้ทุกอย่าง) ⊇ env (แผนกสิ่งแวดล้อม เห็นทุกเขต) ⊇ zone (หัวหน้าเขต เห็นเฉพาะเขตตัวเอง)
+  function canSee(u, row) { return u.role !== 'zone' || String(row.zone) === String(u.zone); }
+  function admin(p) { var u = user(p); return u && u.role === 'admin' ? u : null; }
   function clean(data) {
     var o = {};
     EDITABLE.forEach(function (k) { if (data[k] !== undefined) o[k] = str(data[k], k === 'note' || k === 'address' ? 500 : 200); });
@@ -100,6 +102,7 @@ var FC_LOGIC_FACTORY = function (env) {
     submit: function (db, p) {
       var d = p.data || {};
       if (d.website) return done(db, { id: 'FC-OK' }); // honeypot กันบอท
+      if (env.isOpen && !env.isOpen()) return fail(env.closedMessage && env.closedMessage() || 'ขณะนี้ปิดรับคำขอออนไลน์ — ติดต่อหัวหน้าเขต');
       var o = clean(d);
       var e = validate(o); if (e) return fail(e);
       var dup = duplicate(db, o);
@@ -152,6 +155,26 @@ var FC_LOGIC_FACTORY = function (env) {
       var out = env.readFile ? env.readFile(f) : null;
       if (!out) return fail('เปิดไฟล์ไม่ได้ (โหมดนี้ไม่มีไฟล์จริง หรือไฟล์ถูกลบจาก Drive)');
       return done(db, { name: f.name, mime: out.mime, data: out.data });
+    },
+    // ---------- เฉพาะแอดมิน ----------
+    removeRequest: function (db, p) { // ลบคำขอถาวร (ทั้งแถวและโฟลเดอร์เอกสาร)
+      if (!user(p)) return fail('กรุณาเข้าสู่ระบบใหม่');
+      if (!admin(p)) return fail('เฉพาะผู้ดูแลระบบ');
+      var r = find(db, p.id); if (!r) return fail('ไม่พบคำขอ');
+      db.rows.splice(db.rows.indexOf(r), 1);
+      if (env.removeRequest) env.removeRequest(r);
+      return done(db, { removed: r.id, dirty: true });
+    },
+    removeFile: function (db, p) { // ลบไฟล์เอกสารทีละไฟล์
+      if (!user(p)) return fail('กรุณาเข้าสู่ระบบใหม่');
+      var u = admin(p); if (!u) return fail('เฉพาะผู้ดูแลระบบ');
+      var r = find(db, p.id); if (!r) return fail('ไม่พบคำขอ');
+      var list = (r.docs || {})[p.docType] || [], i = Number(p.index) || 0, f = list[i];
+      if (!f) return fail('ไม่พบไฟล์');
+      if (env.trashFile) env.trashFile(f);
+      list.splice(i, 1); r.docs[p.docType] = list;
+      touch(db, r, u.name, 'ลบไฟล์ ' + p.docType + ' (' + f.name + ')');
+      return done(db, {});
     },
     login: function (db, p) {
       var u = user(p); if (!u) return fail('รหัส PIN ไม่ถูกต้อง');

@@ -9,13 +9,14 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929w">
+<link rel="stylesheet" href="assets/style.css?v=20260929x">
 </head>
 <body>
 <header class="top"><div class="wrap">
   <img class="logo" src="assets/logo.png" alt="น้ำตาลพิษณุโลก">
   <div><h1>จัดการคำขอสิ่งปฏิกูล<small data-who>เจ้าหน้าที่</small></h1></div>
   <div class="sp"></div>
+  <a class="btn small" href="admin.html" id="toAdmin" hidden>⚙️ หลังบ้าน</a>
   <a class="btn small" href="index.html">หน้าผู้ขอ</a>
   <button class="btn small" id="logout" hidden>ออกจากระบบ</button>
 </div></header>
@@ -28,7 +29,7 @@
       <div class="actions"><button class="btn primary">เข้าสู่ระบบ</button></div>
     </form>
     <p class="hint">PIN ได้จากแผนกสิ่งแวดล้อม (หัวหน้าเขตแต่ละเขตมี PIN ของตัวเอง)</p>
-    <p class="hint" data-demo-hint hidden>โหมดทดลอง: แผนกสิ่งแวดล้อม <b>000000</b> · หัวหน้าเขต 1 <b>111111</b> · หัวหน้าเขต 5 <b>555555</b></p>
+    <p class="hint" data-demo-hint hidden>โหมดทดลอง: แผนกสิ่งแวดล้อม <b>000000</b> · หัวหน้าเขต 1 <b>111111</b> · หัวหน้าเขต 5 <b>555555</b> · ผู้ดูแลระบบ <b>999999</b></p>
     <p data-demo-link hidden><a class="btn small" href="staff.html?demo=1">ลองใช้โหมดทดลอง (ไม่ใช้ข้อมูลจริง)</a></p>
   </section>
 
@@ -59,9 +60,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929w"></script>
-<script src="assets/logic.js?v=20260929w"></script>
-<script src="assets/app.js?v=20260929w"></script>
+<script src="assets/config.js?v=20260929x"></script>
+<script src="assets/logic.js?v=20260929x"></script>
+<script src="assets/app.js?v=20260929x"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -92,8 +93,9 @@
     me = u;
     try { sessionStorage.setItem(SKEY, JSON.stringify(u)); } catch {}
     $('#login').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
-    $('[data-who]').textContent = u.name + (u.role === 'env' ? ' · แผนกสิ่งแวดล้อม' : ' · เขต ' + u.zone);
-    $('[data-zone-filter]').hidden = u.role !== 'env';
+    $('[data-who]').textContent = u.name + (u.role === 'zone' ? ' · เขต ' + u.zone : ' · ' + FC.ROLE_LABEL[u.role]);
+    $('[data-zone-filter]').hidden = u.role === 'zone';
+    $('#toAdmin').hidden = u.role !== 'admin';
     $('#fZone').insertAdjacentHTML('beforeend', CFG.ZONES.map(z => `<option>${esc(z)}</option>`).join(''));
     $('#fProduct').insertAdjacentHTML('beforeend', CFG.PRODUCTS.map(p => `<option value="${p.id}">${esc(p.short)}</option>`).join(''));
     load();
@@ -207,11 +209,13 @@
 
   // ---------- รายละเอียด ----------
   // ไฟล์ที่แนบแล้ว: กดดู PDF ในเว็บ (ไม่ต้องมีสิทธิ์ Drive)
-  const fileBtn = (doc, i, f) => f.url ? `<button type="button" class="btn small" data-open="${doc}:${i}">📄 ${esc(f.name || 'ไฟล์ ' + (i + 1))}</button>` : `<span class="muted">${esc(f.name)}</span>`;
+  const fileBtn = (doc, i, f) => (f.url ? `<button type="button" class="btn small" data-open="${doc}:${i}">📄 ${esc(f.name || 'ไฟล์ ' + (i + 1))}</button>` : `<span class="muted">${esc(f.name)}</span>`) +
+    (me.role === 'admin' ? `<button type="button" class="btn small danger" data-rmfile="${doc}:${i}" title="ลบไฟล์นี้">🗑</button>` : '');
   function openDetail(id) {
     const r = rows.find(x => x.id === id); if (!r) return;
     const need = docsFor(r.ownership || 'own');
-    const editable = me.role === 'env' || ['submitted', 'zone_ok', 'fix'].includes(r.status);
+    const editable = me.role !== 'zone' || ['submitted', 'zone_ok', 'fix'].includes(r.status);
+    const isAdmin = me.role === 'admin';
     const body = openDlg(r.id, `
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">${statusBadge(r.status)}<span class="muted">${esc(r.channel)} · ${fmtDate(r.created, true)}</span></div>
       ${stepper(r.status)}
@@ -243,11 +247,26 @@
       <h3 style="margin-top:18px">ดำเนินการ</h3>
       <div class="cta">${actionsFor([r]).map(([st, lbl]) => `<button class="btn ${st === 'fix' ? '' : 'primary'}" data-act="${st}">${esc(lbl)}</button>`).join('')}
         ${editable ? '<button class="btn" data-edit>แก้ไขข้อมูล</button>' : ''}
-        ${me.role === 'env' || ['submitted', 'fix', 'zone_ok'].includes(r.status) ? (r.status !== 'cancelled' ? '<button class="btn danger" data-act="cancelled">ยกเลิกคำขอ</button>' : '') : ''}
+        ${me.role !== 'zone' || ['submitted', 'fix', 'zone_ok'].includes(r.status) ? (r.status !== 'cancelled' ? '<button class="btn danger" data-act="cancelled">ยกเลิกคำขอ</button>' : '') : ''}
         <button class="btn" data-paper>🖨 ใบคำร้อง</button><button class="btn" data-print1>🖨 ใบปะหน้า</button></div>
+      ${isAdmin ? `<div class="admin-tools"><b>🛡 ผู้ดูแลระบบ</b>
+        <label>ตั้งสถานะเป็น<select data-anyst>${Object.entries(STATUS).map(([k, s]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(s.short)}</option>`).join('')}</select></label>
+        <button class="btn small" data-setany>ตั้งสถานะ</button>
+        <button class="btn small danger" data-remove>🗑 ลบคำขอนี้ถาวร</button></div>` : ''}
       <details><summary>ประวัติ (${(r.history || []).length})</summary><ul class="timeline">${(r.history || []).slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.by)}: ${esc(FC.histText(h.a))}</li>`).join('')}</ul></details>`);
     $$('[data-act]', body).forEach(b => (b.onclick = () => askStatus([r.id], b.dataset.act)));
     FC.bindOpen(body, r.id, { pin: me.pin });
+    if (isAdmin) {
+      $('[data-setany]', body).onclick = () => askStatus([r.id], $('[data-anyst]', body).value);
+      $('[data-remove]', body).onclick = () => confirmDlg(`ลบคำขอ ${r.id} ถาวร`,
+        `ลบคำขอของ <b>${esc(r.name)}</b> ออกจากระบบ พร้อมย้ายโฟลเดอร์เอกสารลงถังขยะ Drive — พิมพ์เลขที่คำขอ <b>${esc(r.id)}</b> เพื่อยืนยัน`, r.id,
+        async () => { await api('removeRequest', { pin: me.pin, id: r.id }); toast('ลบคำขอแล้ว'); dlg.close(); await load(); });
+      $$('[data-rmfile]', body).forEach(b => (b.onclick = () => {
+        const [doc, i] = b.dataset.rmfile.split(':'), f = (r.docs[doc] || [])[+i] || {};
+        confirmDlg('ลบไฟล์', `ลบไฟล์ <b>${esc(f.name)}</b> ของคำขอ ${esc(r.id)} (ย้ายลงถังขยะ Drive)`, '',
+          async () => { await api('removeFile', { pin: me.pin, id: r.id, docType: doc, index: +i }); toast('ลบไฟล์แล้ว'); await load(); openDetail(r.id); });
+      }));
+    }
     $('[data-print1]', body).onclick = () => printCover([r]);
     $('[data-paper]', body).onclick = () => FC.printPaper(r);
     $('[data-regen]', body).onclick = async e => {
@@ -297,21 +316,21 @@
     window.print();
   }
 
-  function exportCsv(list) {
-    const cols = FC_FIELDS.filter(([k]) => !['docs', 'checks', 'history'].includes(k));
-    // เบอร์/เลขบัตร: ="…" ให้ Excel เก็บเป็นข้อความ (ไม่ตัด 0 นำหน้า ไม่กลายเป็น 3.65E+12)
-    // ข้อความที่ขึ้นต้นด้วย = + - @ ใส่ ' นำหน้า กันถูกตีความเป็นสูตร
-    const cell = (v, k) => {
-      const s = String(v ?? '');
-      if (['phone', 'citizenId'].includes(k) && /^\d+$/.test(s)) return '="' + s + '"';
-      return '"' + (/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""') + '"';
-    };
-    const csv = '﻿' + [cols.map(c => cell(c[1])).join(',')].concat(list.map(r => cols.map(([k]) => cell(k === 'product' ? productName(r[k]) : k === 'status' ? (STATUS[r[k]] || {}).short : r[k], k)).join(','))).join('\r\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = `คำขอสิ่งปฏิกูล-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  // ยืนยันการลบ (typed = ต้องพิมพ์คำนี้ก่อนกดยืนยัน)
+  function confirmDlg(title, html, typed, run) {
+    const body = openDlg(title, `<form id="cfm"><p>${html}</p>${typed ? '<label>พิมพ์เพื่อยืนยัน<input name="t" autocomplete="off"></label>' : ''}
+      <div class="actions"><button type="button" class="btn ghost" data-x>ยกเลิก</button><button class="btn danger">ยืนยันลบ</button></div></form>`);
+    $('[data-x]', body).onclick = () => dlg.close();
+    $('#cfm').addEventListener('submit', async e => {
+      e.preventDefault();
+      if (typed && e.target.t.value.trim() !== typed) return toast('พิมพ์ไม่ตรง', true);
+      const b = $('button.danger', e.target); b.disabled = true;
+      try { await run(); } catch (x) { toast(x.message, true); b.disabled = false; }
+    });
   }
+
+  const exportCsv = list => FC.exportRequests(list);
+
 })();
 </script>
 </body>

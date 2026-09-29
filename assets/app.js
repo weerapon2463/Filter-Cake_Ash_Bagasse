@@ -11,6 +11,7 @@
     cancelled: { label: 'ยกเลิก', short: 'ยกเลิก', tone: 'red', step: 0 },
   };
   const STEPS = ['ยื่นคำขอ', 'เขตตรวจ', 'สิ่งแวดล้อมตรวจ', 'เสร็จ'];
+  const ROLE_LABEL = { admin: 'ผู้ดูแลระบบ', env: 'แผนกสิ่งแวดล้อม', zone: 'หัวหน้าเขต' };
 
   // ---------- เอกสารแนบ ----------
   const OWNERSHIP = [
@@ -128,6 +129,7 @@
       { pin: '000000', name: 'แผนกสิ่งแวดล้อม (ทดลอง)', role: 'env', zone: '' },
       { pin: '111111', name: 'หัวหน้าเขต 1 (ทดลอง)', role: 'zone', zone: '1' },
       { pin: '555555', name: 'หัวหน้าเขต 5 (ทดลอง)', role: 'zone', zone: '5' },
+      { pin: '999999', name: 'ผู้ดูแลระบบ (ทดลอง)', role: 'admin', zone: '' },
     ];
     const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { rows: [], seq: 0 }; } catch { return { rows: [], seq: 0 }; } };
     const save = db => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch { throw new Error('พื้นที่เก็บข้อมูลเต็ม'); } };
@@ -155,10 +157,24 @@
     };
   })();
 
+  // ---------- ตั้งค่าจากหลังบ้าน (ทับค่าใน config.js) — ใช้ค่าที่จำไว้ในเครื่องก่อน แล้วโหลดล่าสุดเบื้องหลัง ----------
+  // เมื่อค่าเปลี่ยน ยิงอีเวนต์ 'fc-config' ให้หน้าเว็บวาดส่วนที่เกี่ยวข้องใหม่
+  const CKEY = 'fc-settings' + (DEMO ? '-demo' : '');
+  const applySettings = st => { if (st && typeof st === 'object') Object.assign(CFG, st); };
+  try { applySettings(JSON.parse(localStorage.getItem(CKEY))); } catch {}
+  function setSettings(st) {
+    let was = null; try { was = localStorage.getItem(CKEY); } catch {}
+    const now = JSON.stringify(st || {});
+    try { localStorage.setItem(CKEY, now); } catch {}
+    applySettings(st);
+    if (was !== now) document.dispatchEvent(new Event('fc-config'));
+  }
+  const configReady = LIVE ? api('config').then(r => setSettings(r.settings)).catch(() => {}) : Promise.resolve();
+
   // ประวัติ: แปลงรหัสเป็นคำอ่านง่าย ("แนบไฟล์ idcard" → "แนบไฟล์ สำเนาบัตรประจำตัวประชาชน")
   function histText(a) {
     return String(a || '')
-      .replace(/^แนบไฟล์ (\w+)/, (m, id) => 'แนบไฟล์ ' + ((DOCS.find(d => d.id === id) || {}).label || id))
+      .replace(/^(แนบไฟล์|ลบไฟล์) (\w+)/, (m, verb, id) => verb + ' ' + (id === 'form' ? 'ใบคำร้อง' : (DOCS.find(d => d.id === id) || {}).label || id))
       .replace(/^สถานะ → (\w+)/, (m, st) => 'สถานะ → ' + ((STATUS[st] || {}).short || st));
   }
 
@@ -900,9 +916,36 @@
     catch (x) { console.warn(x); return false; }
   }
 
-  // คง ?demo=1 ไว้เมื่อย้ายหน้า
+  // ส่งออก CSV (เปิดใน Excel ภาษาไทยได้): rows = [[หัวตาราง…], [ค่า…], …]; textCols = คอลัมน์ที่ต้องเป็นข้อความ (เบอร์/เลขบัตร)
+  function downloadCsv(rows, filename, textCols = []) {
+    // เบอร์/เลขบัตร: ="…" ให้ Excel เก็บเป็นข้อความ (ไม่ตัด 0 นำหน้า ไม่กลายเป็น 3.65E+12)
+    // ข้อความที่ขึ้นต้นด้วย = + - @ ใส่ ' นำหน้า กันถูกตีความเป็นสูตร
+    const cell = (v, i) => {
+      const s = String(v ?? '');
+      if (textCols.includes(i) && /^\d+$/.test(s)) return '="' + s + '"';
+      return '"' + (/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""') + '"';
+    };
+    const csv = '\ufeff' + rows.map((r, ri) => r.map((v, i) => ri ? cell(v, i) : cell(v)).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  // รายการคำขอทั้งหมด (ทุกช่องใน Sheet ยกเว้น JSON)
+  function exportRequests(list, filename) {
+    const cols = FC_FIELDS.filter(([k]) => !['docs', 'checks', 'history'].includes(k));
+    const text = cols.map(([k], i) => ['phone', 'citizenId'].includes(k) ? i : -1).filter(i => i >= 0);
+    downloadCsv([cols.map(c => c[1])].concat(list.map(r => cols.map(([k]) =>
+      k === 'product' ? productName(r[k]) : k === 'status' ? (STATUS[r[k]] || {}).short : r[k]))),
+    filename || `คำขอสิ่งปฏิกูล-${new Date().toISOString().slice(0, 10)}.csv`, text);
+  }
+
+  // คง ?demo=1 ไว้เมื่อย้ายหน้า (ทำครั้งเดียว)
+  let demoLinksDone = false;
   function keepDemoLinks() {
-    if (!/[?&]demo=1/.test(location.search)) return;
+    if (demoLinksDone || !/[?&]demo=1/.test(location.search)) return;
+    demoLinksDone = true;
     $$('a[href$=".html"]').forEach(a => (a.href = a.getAttribute('href') + '?demo=1'));
   }
 
@@ -913,7 +956,9 @@
     if (DEMO && !$('.demo-banner')) document.body.insertAdjacentHTML('afterbegin', `<div class="demo-banner">🧪 โหมดทดลอง${LIVE ? ' — ข้อมูลตัวอย่างที่ทุกคนเห็นเหมือนกัน (ล้างกลับทุกคืน)' : ''} · ห้ามใส่ข้อมูลจริง${CFG.API_URL ? ' · <a href="' + location.pathname + '">ไปหน้าใช้งานจริง</a>' : ''}</div>`);
   }
 
-  window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
+  document.addEventListener('fc-config', () => { if ($('#footer')) footer(); });
+
+  window.FC = { CFG, STATUS, STEPS, ROLE_LABEL, configReady, setSettings, downloadCsv, exportRequests, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
     productName, paperName, histText, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
     askSignature, docButtons, reviewAndUpload, showPdf, fileButtons, bindOpen };
 })();

@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929w">
+<link rel="stylesheet" href="assets/style.css?v=20260929x">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -26,6 +26,7 @@
   </nav>
 
   <section id="home">
+    <div class="alert" data-announce hidden></div>
     <div class="hero">
       <h2>กากใบอ้อย · ขี้หม้อกรอง · ขี้เถ้า</h2>
       <p class="muted">สำหรับชาวไร่อ้อยที่ต้องการนำไปปรับปรุงพื้นที่ปลูกอ้อย ประจำปีการผลิต <b data-season></b> — ขอรับได้ <b data-tpr></b> ตัน/ไร่ ตามกฎหมาย (ฟรี ห้ามจำหน่าย)</p>
@@ -82,23 +83,32 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929w"></script>
-<script src="assets/logic.js?v=20260929w"></script>
-<script src="assets/app.js?v=20260929w"></script>
+<script src="assets/config.js?v=20260929x"></script>
+<script src="assets/logic.js?v=20260929x"></script>
+<script src="assets/app.js?v=20260929x"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
   $('[data-org]').textContent = CFG.ORG_NAME + ' · ' + CFG.DEPT_NAME;
-  $$('[data-season]').forEach(e => (e.textContent = CFG.SEASON));
-  $('[data-tpr]').textContent = CFG.TONS_PER_RAI;
-  $('[data-cal]').innerHTML = CFG.CALENDAR.map(([a, d]) => `<tr><td>${esc(a)}</td><td style="white-space:nowrap"><b>${esc(d)}</b></td></tr>`).join('');
+  // ส่วนที่แก้ได้จากหลังบ้าน — วาดใหม่เมื่อโหลดค่าตั้งค่าล่าสุดเสร็จ
+  function fillHome() {
+    $$('[data-season]').forEach(e => (e.textContent = CFG.SEASON));
+    $('[data-tpr]').textContent = CFG.TONS_PER_RAI;
+    $('[data-cal]').innerHTML = CFG.CALENDAR.map(([a, d]) => `<tr><td>${esc(a)}</td><td style="white-space:nowrap"><b>${esc(d)}</b></td></tr>`).join('');
+    const notes = [CFG.ANNOUNCE ? esc(CFG.ANNOUNCE) : '', CFG.OPEN === false ? `<b>ขณะนี้ปิดรับคำขอออนไลน์</b>${CFG.CLOSED_MSG ? ' — ' + esc(CFG.CLOSED_MSG) : ''}` : ''].filter(Boolean);
+    $('[data-announce]').innerHTML = notes.join('<br>'); $('[data-announce]').hidden = !notes.length;
+    const host = $('[data-form-host]');
+    if (!$('#apply').hidden && (CFG.OPEN === false ? !host.querySelector('[data-closed]') && !host.querySelector('form') : host.querySelector('[data-closed]'))) drawForm();
+  }
+  fillHome();
+  document.addEventListener('fc-config', fillHome);
   FC.footer();
   if (FC.DEMO) $('[data-demo-try]').remove();
 
   function show(tab) {
     $$('main > section').forEach(s => (s.hidden = s.id !== tab));
     $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-    if (tab === 'apply' && !$('[data-form-host] form')) drawForm();
+    if (tab === 'apply' && !$('[data-form-host] form') && !$('[data-form-host] [data-closed]')) drawForm();
     history.replaceState(null, '', '#' + tab);
     window.scrollTo(0, 0);
   }
@@ -106,6 +116,11 @@
   $$('[data-go]').forEach(b => (b.onclick = () => show(b.dataset.go)));
 
   function drawForm() {
+    if (CFG.OPEN === false) {
+      $('[data-form-host]').innerHTML = `<div data-closed><h3>ขณะนี้ปิดรับคำขอออนไลน์</h3><p>${esc(CFG.CLOSED_MSG || 'ติดต่อหัวหน้าเขตของท่าน')}</p>
+        <p class="muted">โทร ${esc(CFG.CONTACT_TEL)} · ตรวจสถานะคำขอเดิมได้ที่เมนู "ตรวจสถานะ"</p></div>`;
+      return;
+    }
     FC.renderRequestForm($('[data-form-host]'), {
       onDone(id, data, sign) {
         try { localStorage.setItem('fc-last', JSON.stringify({ id, phone: data.phone })); } catch {}
