@@ -228,3 +228,4 @@ dialog.signpage { width: min(760px, calc(100vw - 8px)); }
 .sp-pad { position: absolute; }
 .sp-pad canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; background: rgba(255, 244, 170, .25); border-radius: 4px; }
 .sp-pad.signed canvas { background: transparent; }
+@media (max-width: 620px) { dialog.signpage .dbody, dialog.review .dbody { padding: 10px; } dialog.signpage .actions .btn { flex: 1 1 40%; } }

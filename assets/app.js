@@ -402,7 +402,7 @@
     const g = c.getContext('2d'), M = 80;
     g.fillStyle = '#fff'; g.fillRect(0, 0, PAGE_W, PAGE_H);
     // รูปชิดบน เว้นที่ด้านล่างไว้สำหรับช่องเซ็นรับรอง
-    const stampH = 300, maxH = PAGE_H - M * 2 - stampH - 30;
+    const stampH = 400, maxH = PAGE_H - M * 2 - stampH - 30;
     const k = Math.min((PAGE_W - M * 2) / el.width, maxH / el.height);
     const w = el.width * k, h = el.height * k, x = (PAGE_W - w) / 2, y = M;
     g.drawImage(el, x, y, w, h);
@@ -419,26 +419,26 @@
     g.restore();
     // ช่องเซ็นรับรองสำเนา (ใต้รูป ชิดขวา)
     const own = mark.signing ? '' : pageSigns.get(file);
-    const bw = 560, bh = stampH - 20, bx = PAGE_W - M - bw, by = y + h + 30;
+    const bw = 900, bh = stampH - 20, bx = PAGE_W - M - bw, by = y + h + 30;
     c.box = { x: bx / PAGE_W, y: by / PAGE_H, w: bw / PAGE_W, h: bh / PAGE_H };
     if (own || mark.sign || mark.preview || mark.signing) {
       const signed = !!(own || mark.sign);
       g.strokeStyle = '#1d3f9a'; g.lineWidth = 3; g.setLineDash(signed ? [] : [14, 10]); g.strokeRect(bx, by, bw, bh); g.setLineDash([]);
       g.fillStyle = '#1d3f9a'; g.textAlign = 'center';
-      g.font = '700 44px Sarabun, sans-serif'; g.fillText('สำเนาถูกต้อง', bx + bw / 2, by + 60);
+      g.font = '700 50px Sarabun, sans-serif'; g.fillText('สำเนาถูกต้อง', bx + bw / 2, by + 64);
       if (own) g.drawImage(await loadImg(own), bx, by, bw, bh); // เซ็นตรงไหน อยู่ตรงนั้น
       else if (mark.signing) {
-        g.font = '30px Sarabun, sans-serif'; g.fillStyle = '#8a97bd'; g.fillText('✍ เซ็นชื่อในกรอบนี้', bx + bw / 2, by + 150);
+        g.font = '30px Sarabun, sans-serif'; g.fillStyle = '#8a97bd'; g.fillText('✍ เซ็นชื่อในกรอบนี้', bx + bw / 2, by + 200);
         g.fillStyle = '#1d3f9a';
       } else if (mark.sign) {
         const sig = await loadImg(mark.sign);
-        const sh = 130, sw = Math.min(bw - 60, sh * sig.width / sig.height);
-        g.drawImage(sig, bx + (bw - sw) / 2, by + 80, sw, sh);
+        const sh = 200, sw = Math.min(bw - 80, sh * sig.width / sig.height);
+        g.drawImage(sig, bx + (bw - sw) / 2, by + 90, sw, sh);
       } else {
-        g.font = '28px Sarabun, sans-serif'; g.fillStyle = '#8a97bd'; g.fillText('(ลายเซ็นผู้ขอจะอยู่ตรงนี้)', bx + bw / 2, by + 150);
+        g.font = '28px Sarabun, sans-serif'; g.fillStyle = '#8a97bd'; g.fillText('(ลายเซ็นผู้ขอจะอยู่ตรงนี้)', bx + bw / 2, by + 200);
         g.fillStyle = '#1d3f9a';
       }
-      g.font = '30px Sarabun, sans-serif';
+      g.font = '34px Sarabun, sans-serif';
       g.fillText(mark.name ? `(${mark.name})  ${d}` : `ลงวันที่ ${d}`, bx + bw / 2, by + bh - 25);
     }
     return c;
