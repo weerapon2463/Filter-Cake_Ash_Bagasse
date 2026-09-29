@@ -1,0 +1,9 @@
+*.pdf
+*.xlsx
+*.xls
+*.docx
+*.pptx
+.clasp.json
+.clasprc.json
+Thumbs.db
+desktop.ini

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ขอรับสิ่งปฏิกูล ออนไลน์</title>
+<meta name="description" content="ยื่นคำขอรับกากใบอ้อย / ขี้หม้อกรอง / ขี้เถ้า ออนไลน์ และตรวจสถานะคำขอ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=20260929a">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div><h1>ขอรับสิ่งปฏิกูลที่ไม่ใช้แล้ว ออนไลน์<small data-org></small></h1></div>
+  <div class="sp"></div>
+  <a class="btn small" href="staff.html">เจ้าหน้าที่</a>
+</div></header>
+
+<main class="wrap">
+  <nav class="tabs" aria-label="เมนู">
+    <button class="btn on" data-tab="home">หน้าแรก</button>
+    <button class="btn" data-tab="apply">ยื่นคำขอ</button>
+    <button class="btn" data-tab="check">ตรวจสถานะ</button>
+  </nav>
+
+  <section id="home">
+    <div class="hero">
+      <h2>กากใบอ้อย · ขี้หม้อกรอง · ขี้เถ้า</h2>
+      <p class="muted">สำหรับชาวไร่อ้อยที่ต้องการนำไปปรับปรุงพื้นที่ปลูกอ้อย ประจำปีการผลิต <b data-season></b> — ขอรับได้ <b data-tpr></b> ตัน/ไร่ ตามกฎหมาย (ฟรี ห้ามจำหน่าย)</p>
+      <div class="cta">
+        <button class="btn primary" data-go="apply">ยื่นคำขอออนไลน์</button>
+        <button class="btn" data-go="check">ตรวจสถานะคำขอ</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>เอกสารที่ต้องเตรียม <small class="muted">(รับรองสำเนาถูกต้องทุกแผ่น)</small></h3>
+      <ul>
+        <li>สำเนาบัตรประจำตัวประชาชน 1 ฉบับ</li>
+        <li>สำเนาทะเบียนบ้าน 1 ฉบับ</li>
+        <li>สำเนาบัตรประจำตัวชาวไร่อ้อย / ทะเบียนเกษตรกร 1 ฉบับ</li>
+        <li>สำเนาโฉนดที่ดินที่จะนำสิ่งปฏิกูลไปใช้ประโยชน์ 1 ฉบับ (เจ้าของโฉนดรับรองทั้ง 2 หน้า)</li>
+      </ul>
+      <div class="alert">
+        <b>โฉนดไม่ใช่ชื่อผู้ขอ:</b> แนบสัญญาเช่า หรือหนังสือยินยอมให้ใช้ประโยชน์ในที่ดิน พร้อมสำเนาบัตรประชาชนและทะเบียนบ้านของเจ้าของโฉนด (รับรองสำเนา)<br>
+        เอกสารทุกฉบับต้องเป็นชื่อผู้ขอคนเดียวกัน และบัตรต้องยังไม่หมดอายุ — ถ้าเอกสารไม่ครบ กรมโรงงานฯ อาจไม่อนุญาตให้นำออก
+      </div>
+    </div>
+    <div class="card">
+      <h3>ขั้นตอน</h3>
+      <ol class="steps">
+        <li>ชาวไร่ยื่นคำขอ (ออนไลน์ หรือผ่านหัวหน้าเขต) พร้อมเอกสาร</li>
+        <li>หัวหน้าเขตตรวจเอกสาร รวบรวมส่งแผนกสิ่งแวดล้อม</li>
+        <li>แผนกสิ่งแวดล้อมตรวจเอกสาร — ถ้าต้องแก้ไขจะแจ้งกลับผ่านเขต</li>
+        <li>แผนกสิ่งแวดล้อมยื่นเข้าระบบกรมโรงงานอุตสาหกรรม (ใช้เวลาประมาณ 45–60 วัน)</li>
+        <li>เมื่อได้รับอนุญาต แผนกสิ่งแวดล้อมพิมพ์ใบกำกับการขนส่ง ให้ผู้ขนส่งเซ็นรับทราบ</li>
+        <li>รับตั๋วนำออก (ยื่น รปภ. ก่อนออกโรงงาน / ยื่นที่จุดปล่อย) แล้วนำออกได้</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>ปฏิทินรับเรื่อง ปี <span data-season></span></h3>
+      <table><tbody data-cal></tbody></table>
+    </div>
+  </section>
+
+  <section id="apply" hidden>
+    <div class="card" data-form-host></div>
+  </section>
+
+  <section id="check" hidden>
+    <div class="card">
+      <h3>ตรวจสถานะคำขอ</h3>
+      <form id="checkForm" class="grid2">
+        <label>เลขที่คำขอ<input name="id" required placeholder="FC6970-0001" autocapitalize="characters"></label>
+        <label>เบอร์โทรที่ใช้ยื่น<input name="phone" required inputmode="tel"></label>
+        <div class="span2 actions"><button class="btn primary">ตรวจสถานะ</button></div>
+      </form>
+    </div>
+    <div data-result></div>
+  </section>
+</main>
+<footer id="footer"></footer>
+
+<script src="assets/config.js?v=20260929a"></script>
+<script src="assets/logic.js?v=20260929a"></script>
+<script src="assets/app.js?v=20260929a"></script>
+<script>
+(function () {
+  const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
+  $('[data-org]').textContent = CFG.ORG_NAME + ' · ' + CFG.DEPT_NAME;
+  $$('[data-season]').forEach(e => (e.textContent = CFG.SEASON));
+  $('[data-tpr]').textContent = CFG.TONS_PER_RAI;
+  $('[data-cal]').innerHTML = CFG.CALENDAR.map(([a, d]) => `<tr><td>${esc(a)}</td><td style="white-space:nowrap"><b>${esc(d)}</b></td></tr>`).join('');
+  FC.footer();
+
+  function show(tab) {
+    $$('main > section').forEach(s => (s.hidden = s.id !== tab));
+    $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    if (tab === 'apply' && !$('[data-form-host] form')) drawForm();
+    history.replaceState(null, '', '#' + tab);
+    window.scrollTo(0, 0);
+  }
+  $$('[data-tab]').forEach(b => (b.onclick = () => show(b.dataset.tab)));
+  $$('[data-go]').forEach(b => (b.onclick = () => show(b.dataset.go)));
+
+  function drawForm() {
+    FC.renderRequestForm($('[data-form-host]'), {
+      onDone(id, data) {
+        try { localStorage.setItem('fc-last', JSON.stringify({ id, phone: data.phone })); } catch {}
+        $('[data-form-host]').innerHTML = `<div class="success">
+          <p>ยื่นคำขอเรียบร้อย — เลขที่คำขอของคุณ</p>
+          <div class="big">${esc(id)}</div>
+          <p class="muted">จดหรือถ่ายภาพหน้าจอนี้ไว้ ใช้คู่กับเบอร์โทรเพื่อตรวจสถานะ<br>
+          จำนวนที่ขอ ${fmtNum(data.rai, 2)} ไร่ × ${CFG.TONS_PER_RAI} = <b>${fmtNum(data.rai * CFG.TONS_PER_RAI, 1)} ตัน</b><br>
+          กรุณาส่งเอกสารฉบับจริง (รับรองสำเนา) ให้หัวหน้าเขต ${esc(data.zone)}</p>
+          <div class="cta" style="justify-content:center">
+            <button class="btn primary" id="goCheck">ดูสถานะ / แนบเอกสารเพิ่ม</button>
+            <button class="btn" id="again">ยื่นคำขออีกรายการ</button>
+          </div></div>`;
+        $('#goCheck').onclick = () => { fillCheck(id, data.phone); show('check'); runCheck(); };
+        $('#again').onclick = drawForm;
+      },
+    });
+  }
+
+  const cf = $('#checkForm');
+  function fillCheck(id, phone) { cf.id.value = id; cf.phone.value = phone; }
+  try { const last = JSON.parse(localStorage.getItem('fc-last')); if (last) fillCheck(last.id, last.phone); } catch {}
+  cf.addEventListener('submit', e => { e.preventDefault(); runCheck(); });
+
+  async function runCheck() {
+    const out = $('[data-result]');
+    out.innerHTML = '<div class="card muted">กำลังค้นหา…</div>';
+    try {
+      const { req: r } = await api('status', { id: cf.id.value.trim(), phone: digits(cf.phone.value) });
+      const s = STATUS[r.status] || {};
+      const need = docsFor(r.ownership || 'own');
+      out.innerHTML = `<div class="card">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><h3>${esc(r.id)}</h3>${statusBadge(r.status)}</div>
+        ${stepper(r.status)}
+        <p><b>${esc(s.label || r.status)}</b></p>
+        ${r.status === 'fix' ? `<div class="alert"><b>สิ่งที่ต้องแก้ไข:</b> ${esc(r.fixReason)}<br>ติดต่อหัวหน้าเขต ${esc(r.zone)} หรือแนบเอกสารใหม่ด้านล่าง</div>` : ''}
+        <dl class="kv">
+          <dt>ผู้ขอ</dt><dd>${esc(r.name)}</dd>
+          <dt>ชนิด</dt><dd>${esc(productName(r.product))}</dd>
+          <dt>เขต</dt><dd>${esc(r.zone)}</dd>
+          <dt>จำนวน</dt><dd>${fmtNum(r.rai, 2)} ไร่ · ${fmtNum(r.tons, 1)} ตัน</dd>
+          <dt>วันที่ยื่น</dt><dd>${fmtDate(r.created, true)}</dd>
+          ${r.filedDate ? `<dt>ยื่นกรมโรงงาน</dt><dd>${fmtDate(r.filedDate)}</dd>` : ''}
+          ${r.permitNo ? `<dt>หนังสืออนุญาต</dt><dd>${esc(r.permitNo)} (${fmtDate(r.approvedDate)})</dd>` : ''}
+          ${r.ticketNo ? `<dt>ตั๋วนำออก</dt><dd>${esc(r.ticketNo)}</dd>` : ''}
+          ${r.deliveredTons ? `<dt>นำออกแล้ว</dt><dd>${fmtNum(r.deliveredTons, 1)} ตัน (${fmtDate(r.doneDate)})</dd>` : ''}
+        </dl>
+        ${r.status === 'approved' ? '<div class="alert">ได้รับอนุญาตแล้ว — ติดต่อแผนกสิ่งแวดล้อม/หัวหน้าเขตเพื่อรับตั๋วนำออก และเซ็นรับทราบใบกำกับการขนส่ง</div>' : ''}
+        <h3 style="margin-top:18px">เอกสารแนบ</h3>
+        <div>${need.map(d => {
+          const n = (r.docCount || {})[d.id] || 0;
+          return `<div class="docrow"><div>${esc(d.label)} ${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : '<span class="muted">– ยังไม่มี</span>'}</div>
+            ${r.canUpload ? `<label class="btn small">📷 แนบ<input type="file" accept="image/*,application/pdf" multiple hidden data-doc="${d.id}"></label>` : ''}</div>`;
+        }).join('')}</div>
+        <details style="margin-top:14px"><summary>ประวัติ</summary><ul class="timeline">${r.history.slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.a)}</li>`).join('')}</ul></details>
+      </div>`;
+      $$('[data-doc]', out).forEach(inp => inp.addEventListener('change', async () => {
+        const files = [...inp.files]; if (!files.length) return;
+        const lbl = inp.parentElement; lbl.firstChild.textContent = 'กำลังอัปโหลด…';
+        try {
+          for (const f of files) await api('upload', Object.assign({ id: r.id, phone: digits(cf.phone.value), docType: inp.dataset.doc }, await readFileForUpload(f)));
+          toast('แนบไฟล์เรียบร้อย'); runCheck();
+        } catch (x) { toast(x.message, true); lbl.firstChild.textContent = '📷 แนบ'; }
+      }));
+    } catch (x) {
+      out.innerHTML = `<div class="card"><b>${esc(x.message)}</b></div>`;
+    }
+  }
+
+  const start = (location.hash || '').slice(1);
+  show(['home', 'apply', 'check'].includes(start) ? start : 'home');
+})();
+</script>
+</body>
+</html>
