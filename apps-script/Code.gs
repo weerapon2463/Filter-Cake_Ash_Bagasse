@@ -153,6 +153,14 @@ function logic_() {
       var file = dir.createFile(Utilities.newBlob(Utilities.base64Decode(f.data), f.mime || 'application/octet-stream', name));
       return { name: file.getName(), url: file.getUrl(), size: file.getSize(), folderUrl: dir.getUrl() };
     },
+    readFile: function (f) {
+      try {
+        var file = DriveApp.getFileById(fileId_(f.url));
+        if (file.isTrashed()) return null;
+        var b = file.getBlob();
+        return { mime: b.getContentType(), data: Utilities.base64Encode(b.getBytes()) };
+      } catch (e) { return null; }
+    },
   });
 }
 

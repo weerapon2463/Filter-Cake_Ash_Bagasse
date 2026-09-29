@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929v">
+<link rel="stylesheet" href="assets/style.css?v=20260929w">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -59,9 +59,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929v"></script>
-<script src="assets/logic.js?v=20260929v"></script>
-<script src="assets/app.js?v=20260929v"></script>
+<script src="assets/config.js?v=20260929w"></script>
+<script src="assets/logic.js?v=20260929w"></script>
+<script src="assets/app.js?v=20260929w"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -206,6 +206,8 @@
   }
 
   // ---------- รายละเอียด ----------
+  // ไฟล์ที่แนบแล้ว: กดดู PDF ในเว็บ (ไม่ต้องมีสิทธิ์ Drive)
+  const fileBtn = (doc, i, f) => f.url ? `<button type="button" class="btn small" data-open="${doc}:${i}">📄 ${esc(f.name || 'ไฟล์ ' + (i + 1))}</button>` : `<span class="muted">${esc(f.name)}</span>`;
   function openDetail(id) {
     const r = rows.find(x => x.id === id); if (!r) return;
     const need = docsFor(r.ownership || 'own');
@@ -228,11 +230,11 @@
         ${r.note ? `<dt>หมายเหตุ</dt><dd>${esc(r.note)}</dd>` : ''}
       </dl>
       <h3 style="margin-top:18px">เอกสาร (PDF) ${r.folderUrl ? `<a class="btn small" href="${esc(r.folderUrl)}" target="_blank" rel="noopener">📁 เปิดโฟลเดอร์</a>` : ''}</h3>
-      <div class="docrow"><div><b>ใบคำร้อง</b><div class="files">${(r.docs.form || []).map(f => f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a>` : `<span class="muted">${esc(f.name)}</span>`).join(' ') || '<span class="muted">– ยังไม่มี</span>'}</div></div>
+      <div class="docrow"><div><b>ใบคำร้อง</b><div class="files">${(r.docs.form || []).map((f, i) => fileBtn('form', i, f)).join(' ') || '<span class="muted">– ยังไม่มี</span>'}</div></div>
         <button class="btn small" data-regen>↻ สร้าง PDF ใหม่</button></div>
       ${need.map(d => {
         const fs = r.docs[d.id] || [];
-        return `<div class="docrow"><div><b>${esc(d.label)}</b><div class="files">${fs.map((f, i) => f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name || 'ไฟล์ ' + (i + 1))}</a>` : `<span class="muted">${esc(f.name)}</span>`).join(' ') || '<span class="muted">– ยังไม่มี</span>'}</div></div>
+        return `<div class="docrow"><div><b>${esc(d.label)}</b><div class="files">${fs.map((f, i) => fileBtn(d.id, i, f)).join(' ') || '<span class="muted">– ยังไม่มี</span>'}</div></div>
           ${FC.docButtons(d.id)}</div>`;
       }).join('')}
       <h3 style="margin-top:18px">ตรวจเอกสาร</h3>
@@ -245,6 +247,7 @@
         <button class="btn" data-paper>🖨 ใบคำร้อง</button><button class="btn" data-print1>🖨 ใบปะหน้า</button></div>
       <details><summary>ประวัติ (${(r.history || []).length})</summary><ul class="timeline">${(r.history || []).slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.by)}: ${esc(FC.histText(h.a))}</li>`).join('')}</ul></details>`);
     $$('[data-act]', body).forEach(b => (b.onclick = () => askStatus([r.id], b.dataset.act)));
+    FC.bindOpen(body, r.id, { pin: me.pin });
     $('[data-print1]', body).onclick = () => printCover([r]);
     $('[data-paper]', body).onclick = () => FC.printPaper(r);
     $('[data-regen]', body).onclick = async e => {

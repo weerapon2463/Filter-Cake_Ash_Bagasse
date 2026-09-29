@@ -141,6 +141,18 @@ var FC_LOGIC_FACTORY = function (env) {
       touch(db, r, u ? u.name : 'ผู้ขอ', replace ? 'สร้างใบคำร้อง PDF' : 'แนบไฟล์ ' + p.docType);
       return done(db, { file: f });
     },
+    // เปิดไฟล์ที่แนบแล้ว (ดูเป็น PDF ในเว็บ ไม่ต้องแชร์ Drive) — เจ้าหน้าที่ตามสิทธิ์เขต / ผู้ขอด้วยเลขคำขอ + เบอร์เต็ม
+    file: function (db, p) {
+      var r = find(db, p.id); if (!r) return fail('ไม่พบคำขอ');
+      var u = user(p);
+      if (u) { if (!canSee(u, r)) return fail('ไม่มีสิทธิ์'); }
+      else { var ph = digits(p.phone); if (ph.length < 9 || r.phone !== ph) return fail('ไม่มีสิทธิ์เปิดไฟล์'); }
+      var f = ((r.docs || {})[p.docType] || [])[Number(p.index) || 0];
+      if (!f) return fail('ไม่พบไฟล์');
+      var out = env.readFile ? env.readFile(f) : null;
+      if (!out) return fail('เปิดไฟล์ไม่ได้ (โหมดนี้ไม่มีไฟล์จริง หรือไฟล์ถูกลบจาก Drive)');
+      return done(db, { name: f.name, mime: out.mime, data: out.data });
+    },
     login: function (db, p) {
       var u = user(p); if (!u) return fail('รหัส PIN ไม่ถูกต้อง');
       return done(db, { user: { name: u.name, role: u.role, zone: u.zone } });

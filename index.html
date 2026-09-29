@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929v">
+<link rel="stylesheet" href="assets/style.css?v=20260929w">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -82,9 +82,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929v"></script>
-<script src="assets/logic.js?v=20260929v"></script>
-<script src="assets/app.js?v=20260929v"></script>
+<script src="assets/config.js?v=20260929w"></script>
+<script src="assets/logic.js?v=20260929w"></script>
+<script src="assets/app.js?v=20260929w"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -159,15 +159,17 @@
           <dt>วันที่ยื่น</dt><dd>${fmtDate(r.created, true)}</dd>
         </dl>
         <h3 style="margin-top:18px">เอกสารแนบ</h3>
-        <div>${need.map(d => {
+        <div>${(r.docCount || {}).form ? `<div class="docrow"><div>ใบคำร้อง <span class="ok">✓</span></div><span class="docbtns">${FC.fileButtons('form', r.docCount.form)}</span></div>` : ''}
+        ${need.map(d => {
           const n = (r.docCount || {})[d.id] || 0;
           return `<div class="docrow"><div>${esc(d.label)} ${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : '<span class="muted">– ยังไม่มี</span>'}</div>
-            ${r.canUpload ? FC.docButtons(d.id) : ''}</div>`;
+            <span class="docbtns">${FC.fileButtons(d.id, n)}${r.canUpload ? FC.docButtons(d.id) : ''}</span></div>`;
         }).join('')}</div>
         <details style="margin-top:14px"><summary>ประวัติ</summary><ul class="timeline">${r.history.slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(FC.histText(h.a))}</li>`).join('')}</ul></details>
       </div>`;
   }
   function bindUploads(r, el) {
+      FC.bindOpen(el, r.id, { phone: digits(cf.phone.value) });
       $$('[data-doc]', el).forEach(inp => inp.addEventListener('change', async () => {
         const files = [...inp.files]; if (!files.length) return;
         const lbl = inp.parentElement, was = lbl.firstChild.textContent; lbl.firstChild.textContent = 'กำลังอัปโหลด…';

@@ -353,7 +353,7 @@
       const preview = Object.assign({}, v, fd, { id: v.id || '(ออกให้เมื่อส่ง)', name: fd.name.trim(), created: v.created || new Date().toISOString(),
         rai: num(fd.rai), tons: num(fd.rai) * CFG.TONS_PER_RAI, sign: pad.isEmpty() ? '' : pad.toDataURL() });
       const go = await reviewDocs(groupsOf().filter(gr => gr.files.length || !staff), { title: 'ตรวจก่อนส่ง', mark: markNow(), signRequired: !staff,
-        formHtml: paperHtml(preview), okText: v.id ? 'ยืนยันบันทึก' : 'ยืนยันส่งคำร้อง' });
+        formHtml: paperHtml(preview), formData: preview, okText: v.id ? 'ยืนยันบันทึก' : 'ยืนยันส่งคำร้อง' });
       drawDocs();
       if (!go) return;
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
@@ -543,8 +543,9 @@
         d.innerHTML = `<div class="dhead"><b>${esc(opts.title || 'ตรวจเอกสารก่อนส่ง')}</b><button type="button" class="btn small ghost" data-x aria-label="ปิด">✕</button></div>
           <div class="dbody">
           <p class="muted">แตะหน้าเพื่อดูใหญ่ · ✍ เซ็นใหม่ · ↻ หมุน · 📷 ถ่ายใหม่ · 🗑 ลบ — หน้าตาตามที่จะส่งจริง</p>
-          ${opts.formHtml ? `<h4>ใบคำร้อง</h4><div class="pv-form"><div class="pv-paper">${opts.formHtml}</div></div>` : ''}
-          ${groups.map((gr, gi) => `<h4>${esc(gr.label)} <small class="muted">${gr.files.length ? gr.files.length + ' หน้า' : 'ยังไม่มี'}</small></h4>
+          ${opts.formHtml ? `<h4>ใบคำร้อง ${opts.formData ? '<button type="button" class="btn small" data-pdfform>📄 ดูเป็น PDF</button>' : ''}</h4><div class="pv-form"><div class="pv-paper">${opts.formHtml}</div></div>` : ''}
+          ${groups.map((gr, gi) => `<h4>${esc(gr.label)} <small class="muted">${gr.files.length ? gr.files.length + ' หน้า' : 'ยังไม่มี'}</small>
+            ${gr.files.length ? `<button type="button" class="btn small" data-pdf="${gi}">📄 ดูเป็น PDF</button>` : ''}</h4>
             <div class="pv-grid">${gr.files.map((f, fi) => `<figure class="pv-page" data-g="${gi}" data-i="${fi}">
               <div class="pv-img">${f.type.startsWith('image/') ? '<span class="muted">กำลังจัดหน้า…</span>' : '<b>ไฟล์ PDF</b><small>' + esc(f.name) + '</small>'}</div>
               <figcaption>${f.type.startsWith('image/') ? '<button type="button" class="btn small" data-sign title="เซ็นใหม่">✍</button><button type="button" class="btn small" data-rot title="หมุน">↻</button>' : ''}
@@ -554,6 +555,14 @@
             ${opts.okText ? `<button type="button" class="btn primary" data-ok>${esc(opts.okText)}${total ? ` (${total} หน้า)` : ''}</button>` : ''}</div></div>`;
         $$('[data-x]', d).forEach(b => (b.onclick = () => close(false)));
         const ok = $('[data-ok]', d); if (ok) ok.onclick = () => close(true);
+        // PDF ตัวจริงที่จะส่ง (สร้างด้วยวิธีเดียวกับตอนอัปโหลด)
+        const asBlob = p => p.then(o => ({ name: o.name, blob: b64Blob(o.data, o.mime) }));
+        $$('[data-pdf]', d).forEach(b => (b.onclick = () => {
+          const gr = groups[+b.dataset.pdf], imgs = gr.files.filter(f => f.type.startsWith('image/'));
+          showPdf(gr.label, [imgs.length ? asBlob(imagesToPdf(imgs, gr.docId + '.pdf', opts.mark || {})) : null]
+            .concat(gr.files.filter(f => !f.type.startsWith('image/')).map(f => ({ name: f.name, blob: f }))));
+        }));
+        const pf = $('[data-pdfform]', d); if (pf) pf.onclick = () => showPdf('ใบคำร้อง', [asBlob(formPdf(opts.formData))]);
         $$('.pv-page', d).forEach(fig => {
           const gr = groups[+fig.dataset.g], i = +fig.dataset.i, f = gr.files[i];
           const rot = $('[data-rot]', fig);
@@ -811,6 +820,60 @@
     } finally { box.remove(); }
   }
 
+  // ---------- ดู PDF ในเว็บ (pdf.js — มือถือ Android เปิด PDF ในหน้าเว็บเองไม่ได้) ----------
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const b64Blob = (data, mime) => new Blob([Uint8Array.from(atob(data), ch => ch.charCodeAt(0))], { type: mime || 'application/pdf' });
+  // parts = [{ name, blob } | Promise ของสิ่งนั้น] — แสดงต่อกันในหน้าต่างเดียว (หน้าละภาพ)
+  function showPdf(title, parts) {
+    const d = document.createElement('dialog'); d.className = 'review pdfview';
+    d.innerHTML = `<div class="dhead"><b>${esc(title)}</b><span class="pv-tools"></span><button type="button" class="btn small ghost" data-x aria-label="ปิด">✕</button></div>
+      <div class="dbody"><div class="pdfpages"><p class="muted">กำลังเปิด PDF…</p></div></div>`;
+    document.body.appendChild(d); d.showModal();
+    const urls = [];
+    const close = () => { d.close(); d.remove(); urls.forEach(u => URL.revokeObjectURL(u)); };
+    $('[data-x]', d).onclick = close;
+    d.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    (async () => {
+      const host = $('.pdfpages', d);
+      try {
+        const got = await Promise.all(parts);
+        host.innerHTML = '';
+        for (const part of got.filter(Boolean)) {
+          const url = URL.createObjectURL(part.blob); urls.push(url);
+          $('.pv-tools', d).insertAdjacentHTML('beforeend', `<a class="btn small" href="${url}" download="${esc(part.name)}" title="บันทึกไฟล์">⬇ ${got.length > 1 ? esc(part.name) : 'บันทึก PDF'}</a>`);
+          if (!/pdf/.test(part.blob.type)) { host.insertAdjacentHTML('beforeend', `<img src="${url}" alt="">`); continue; }
+          await loadScript(PDFJS);
+          const lib = window.pdfjsLib;
+          lib.GlobalWorkerOptions.workerSrc = PDFJS.replace('pdf.min.js', 'pdf.worker.min.js');
+          const pdf = await lib.getDocument({ data: new Uint8Array(await part.blob.arrayBuffer()) }).promise;
+          for (let i = 1; i <= pdf.numPages && d.open; i++) {
+            const page = await pdf.getPage(i);
+            const w = Math.min(host.clientWidth || 700, 900) * Math.min(2, window.devicePixelRatio || 1);
+            const vp = page.getViewport({ scale: w / page.getViewport({ scale: 1 }).width });
+            const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+            host.appendChild(c);
+            await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          }
+        }
+        if (!host.children.length) host.innerHTML = '<p class="muted">ไม่มีเอกสาร</p>';
+      } catch (x) { host.innerHTML = `<b class="tone-red">${esc(x.message || 'เปิด PDF ไม่ได้')}</b>`; }
+    })();
+  }
+  // เปิดไฟล์ที่ส่งแล้วจากเซิร์ฟเวอร์ — auth = { pin } หรือ { phone }
+  function openStored(id, docType, index, auth, title) {
+    showPdf(title, [api('file', Object.assign({ id, docType, index }, auth)).then(r => ({ name: r.name, blob: b64Blob(r.data, r.mime) }))]);
+  }
+  // ปุ่ม "📄 ดู" ของไฟล์ที่ส่งแล้ว (data-open="docType:index")
+  const fileButtons = (docType, n) => Array.from({ length: n }, (_, i) =>
+    `<button type="button" class="btn small" data-open="${docType}:${i}">📄 ดู PDF${n > 1 ? ' ' + (i + 1) : ''}</button>`).join('');
+  const docLabel = id => id === 'form' ? 'ใบคำร้อง' : (DOCS.find(x => x.id === id) || {}).label || id;
+  function bindOpen(el, id, auth) {
+    $$('[data-open]', el).forEach(b => (b.onclick = () => {
+      const [doc, i] = b.dataset.open.split(':');
+      openStored(id, doc, +i, auth, `${id} · ${docLabel(doc)}`);
+    }));
+  }
+
   // อัปโหลดเอกสารประเภทเดียว: รูปทั้งหมดรวมเป็น PDF 1 ไฟล์, ไฟล์ PDF ส่งตามเดิม
   // แนบเพิ่มภายหลัง: ดูตัวอย่าง/แก้ก่อน แล้วค่อยส่ง — คืน false ถ้าผู้ใช้ยกเลิก
   async function reviewAndUpload(id, auth, docId, files, mark, needSign) {
@@ -852,5 +915,5 @@
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
     productName, paperName, histText, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
-    askSignature, docButtons, reviewAndUpload };
+    askSignature, docButtons, reviewAndUpload, showPdf, fileButtons, bindOpen };
 })();
