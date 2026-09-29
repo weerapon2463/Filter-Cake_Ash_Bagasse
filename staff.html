@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929s">
+<link rel="stylesheet" href="assets/style.css?v=20260929t">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -59,9 +59,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929s"></script>
-<script src="assets/logic.js?v=20260929s"></script>
-<script src="assets/app.js?v=20260929s"></script>
+<script src="assets/config.js?v=20260929t"></script>
+<script src="assets/logic.js?v=20260929t"></script>
+<script src="assets/app.js?v=20260929t"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -109,10 +109,21 @@
   $('#fProduct').onchange = e => { filter.product = e.target.value; render(); };
 
   // ---------- ตาราง ----------
+  // ผู้ขอแนบเอกสารใหม่ หลังเจ้าหน้าที่เปลี่ยนสถานะ/บันทึกการตรวจครั้งล่าสุด (ป้ายหายเมื่อกด "บันทึกการตรวจ" หรือเปลี่ยนสถานะ)
+  function newUploads(r) {
+    const h = r.history || [];
+    let n = 0;
+    for (let i = h.length - 1; i >= 0; i--) {
+      if (h[i].by === 'ผู้ขอ') { if (/^แนบไฟล์/.test(h[i].a)) n++; continue; }
+      if (/^สถานะ|^ตรวจเอกสาร/.test(h[i].a)) return n;
+    }
+    return 0; // ยื่นครั้งแรก ยังไม่มีใครตรวจ → นับเป็น "รอเขตตรวจ" อยู่แล้ว
+  }
+  const newBadge = r => { const n = newUploads(r); return n ? ` <span class="badge tone-amber" title="ผู้ขอแนบเอกสารใหม่หลังการตรวจล่าสุด">📎 ใหม่ ${n}</span>` : ''; };
   function docsDone(r) { const need = docsFor(r.ownership || 'own'); return need.filter(d => (r.docs[d.id] || []).length).length + '/' + need.length; }
   function visible() {
     return rows.filter(r =>
-      (!filter.status || r.status === filter.status) && (!filter.zone || String(r.zone) === filter.zone) &&
+      (!filter.status || (filter.status === '_new' ? newUploads(r) > 0 : r.status === filter.status)) && (!filter.zone || String(r.zone) === filter.zone) &&
       (!filter.product || r.product === filter.product) &&
       (!filter.q || [r.id, r.name, r.phone, r.landLocation, r.citizenId].join(' ').toLowerCase().includes(filter.q))
     ).sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
@@ -124,6 +135,7 @@
     $('[data-stats]').innerHTML =
       `<button class="stat ${!filter.status ? 'on' : ''}" data-st=""><b>${base.length}</b><span>ทั้งหมด</span></button>` +
       Object.entries(STATUS).map(([k, s]) => `<button class="stat ${filter.status === k ? 'on' : ''}" data-st="${k}"><b class="tone-${s.tone}">${count(k)}</b><span>${esc(s.short)}</span></button>`).join('') +
+      `<button class="stat ${filter.status === '_new' ? 'on' : ''}" data-st="_new"><b class="tone-amber">${base.filter(r => newUploads(r) > 0).length}</b><span>📎 แนบเอกสารใหม่</span></button>` +
       `<div class="stat"><b>${fmtNum(tonsDone)}</b><span>ตัน (เสร็จแล้ว)</span></div>`;
     $$('[data-st]').forEach(b => (b.onclick = () => { filter.status = b.dataset.st; selected.clear(); render(); }));
     const list = visible();
@@ -134,7 +146,7 @@
       <td>${esc(r.name)}<br><small class="muted">${esc(r.phone)}</small></td>
       <td>${esc(r.zone)}</td><td>${esc(productName(r.product))}</td>
       <td style="text-align:right">${fmtNum(r.rai, 2)}</td><td style="text-align:right">${fmtNum(r.tons, 1)}</td>
-      <td>${docsDone(r)}</td><td>${statusBadge(r.status)}</td></tr>`).join('') ||
+      <td>${docsDone(r)}${newBadge(r)}</td><td>${statusBadge(r.status)}</td></tr>`).join('') ||
       '<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">ไม่มีรายการ</td></tr>';
     const sumR = list.reduce((s, r) => s + num(r.rai), 0), sumT = list.reduce((s, r) => s + num(r.tons), 0);
     $('[data-summary]').textContent = `แสดง ${list.length} ราย · ${fmtNum(sumR, 2)} ไร่ · ${fmtNum(sumT, 1)} ตัน`;
@@ -201,6 +213,7 @@
     const body = openDlg(r.id, `
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">${statusBadge(r.status)}<span class="muted">${esc(r.channel)} · ${fmtDate(r.created, true)}</span></div>
       ${stepper(r.status)}
+      ${newUploads(r) ? `<div class="alert">📎 ผู้ขอแนบเอกสารใหม่ ${newUploads(r)} ครั้ง หลังการตรวจล่าสุด — ดูแล้วกด <b>บันทึกการตรวจ</b> ด้านล่าง ป้ายจะหายไป</div>` : ''}
       ${r.fixReason ? `<div class="alert"><b>สิ่งที่ต้องแก้ไข:</b> ${esc(r.fixReason)}</div>` : ''}
       <dl class="kv">
         <dt>ชนิด</dt><dd>${esc(productName(r.product))}</dd>
@@ -230,7 +243,7 @@
         ${editable ? '<button class="btn" data-edit>แก้ไขข้อมูล</button>' : ''}
         ${me.role === 'env' || ['submitted', 'fix', 'zone_ok'].includes(r.status) ? (r.status !== 'cancelled' ? '<button class="btn danger" data-act="cancelled">ยกเลิกคำขอ</button>' : '') : ''}
         <button class="btn" data-paper>🖨 ใบคำร้อง</button><button class="btn" data-print1>🖨 ใบปะหน้า</button></div>
-      <details><summary>ประวัติ (${(r.history || []).length})</summary><ul class="timeline">${(r.history || []).slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.by)}: ${esc(h.a)}</li>`).join('')}</ul></details>`);
+      <details><summary>ประวัติ (${(r.history || []).length})</summary><ul class="timeline">${(r.history || []).slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.by)}: ${esc(FC.histText(h.a))}</li>`).join('')}</ul></details>`);
     $$('[data-act]', body).forEach(b => (b.onclick = () => askStatus([r.id], b.dataset.act)));
     $('[data-print1]', body).onclick = () => printCover([r]);
     $('[data-paper]', body).onclick = () => FC.printPaper(r);

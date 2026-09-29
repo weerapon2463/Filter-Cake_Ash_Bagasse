@@ -107,10 +107,19 @@ var FC_LOGIC_FACTORY = function (env) {
       var row = create(db, o, 'ออนไลน์', 'ผู้ขอ');
       return done(db, { id: row.id });
     },
+    // ค้นด้วย เลขที่คำขอ (2569-0001 หรือ 25690001) หรือ เลขบัตรประชาชน 13 หลัก — ต้องคู่กับเบอร์โทรเต็มเสมอ
     status: function (db, p) {
-      var r = find(db, p.id), ph = digits(p.phone);
-      if (!r || ph.length < 9 || r.phone !== ph) return fail('ไม่พบคำขอ — ตรวจเลขที่คำขอและเบอร์โทรอีกครั้ง');
-      return done(db, { req: publicView(r) });
+      var ph = digits(p.phone), key = digits(p.id), list = [];
+      if (ph.length >= 9) {
+        if (key.length === 13) list = db.rows.filter(function (x) { return x.citizenId === key && x.phone === ph; });
+        else {
+          var r = find(db, key.length === 8 ? key.slice(0, 4) + '-' + key.slice(4) : p.id);
+          if (r && r.phone === ph) list = [r];
+        }
+      }
+      if (!list.length) return fail('ไม่พบคำขอ — ตรวจเลขที่คำขอ/เลขบัตรประชาชน และเบอร์โทรอีกครั้ง');
+      var views = list.slice().sort(function (a, b) { return String(b.created).localeCompare(String(a.created)); }).map(publicView);
+      return done(db, { req: views[0], reqs: views });
     },
     upload: function (db, p) {
       var r = find(db, p.id); if (!r) return fail('ไม่พบคำขอ');

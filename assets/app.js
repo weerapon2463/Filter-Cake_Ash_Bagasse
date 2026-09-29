@@ -155,15 +155,44 @@
     };
   })();
 
+  // ประวัติ: แปลงรหัสเป็นคำอ่านง่าย ("แนบไฟล์ idcard" → "แนบไฟล์ สำเนาบัตรประจำตัวประชาชน")
+  function histText(a) {
+    return String(a || '')
+      .replace(/^แนบไฟล์ (\w+)/, (m, id) => 'แนบไฟล์ ' + ((DOCS.find(d => d.id === id) || {}).label || id))
+      .replace(/^สถานะ → (\w+)/, (m, st) => 'สถานะ → ' + ((STATUS[st] || {}).short || st));
+  }
+
+  // ---------- ร่างคำขอ: กรอกค้างไว้ไม่หาย แม้หน้าเว็บรีโหลด (เช่นมือถือปิดหน้าเว็บตอนเปิดกล้อง) ----------
+  // ข้อความ → localStorage, รูป + ลายเซ็นรายหน้า → IndexedDB (เก็บในเครื่องนี้เท่านั้น ล้างเมื่อส่งสำเร็จ)
+  const Draft = (() => {
+    const open = () => new Promise((ok, bad) => {
+      const q = indexedDB.open('fc-draft', 1);
+      q.onupgradeneeded = () => q.result.createObjectStore('kv');
+      q.onsuccess = () => ok(q.result); q.onerror = () => bad(q.error);
+    });
+    const op = (mode, fn) => open().then(db => new Promise((ok, bad) => {
+      const t = db.transaction('kv', mode), r = fn(t.objectStore('kv'));
+      t.oncomplete = () => { db.close(); ok(r.result); }; t.onerror = () => bad(t.error);
+    }));
+    return {
+      get: k => op('readonly', s => s.get(k)).catch(() => null),
+      set: (k, v) => op('readwrite', s => s.put(v, k)).catch(() => {}),
+      del: k => op('readwrite', s => s.delete(k)).catch(() => {}),
+    };
+  })();
+
   // ---------- ฟอร์มคำขอ (ใช้ทั้งหน้าชาวไร่และหน้าเจ้าหน้าที่) ----------
   function renderRequestForm(host, opts = {}) {
     const v = opts.initial || {};
     const staff = !!opts.user;
+    const draftOn = !staff && !v.id, DKEY = 'fc-draft' + (DEMO ? '-demo' : '');
     const zoneLocked = staff && opts.user.role === 'zone';
     const opt = (list, cur) => list.map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('');
     host.innerHTML = `
     <form class="reqform paper" novalidate>
       <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <div class="alert" data-draftnote hidden>กู้ข้อมูลที่กรอกค้างไว้ในเครื่องนี้แล้ว — ตรวจอีกครั้ง แล้วเซ็นชื่อใหม่ก่อนส่ง
+        <button type="button" class="btn small ghost" data-draftclear>ล้าง เริ่มกรอกใหม่</button></div>
       <div class="p-head">
         <div></div>
         <div class="p-org"><img src="assets/logo.png" alt="" class="p-logo">${esc(CFG.ORG_NAME)}</div>
@@ -227,7 +256,49 @@
     </form>`;
     const f = $('form', host);
     const picked = {}; // docType -> File[]
+    // ร่าง: คืนข้อความทันที, คืนรูปแบบ async — ห้ามบันทึกรูปทับจนกว่าจะคืนเสร็จ
+    let docsRestored = !draftOn;
+    const NOSAVE = ['website', 'agree'];
+    if (draftOn) {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(DKEY)); } catch {}
+      if (saved) {
+        Object.entries(saved).forEach(([k, val]) => { if (f.elements[k] && !NOSAVE.includes(k)) f.elements[k].value = val; });
+        $('[data-draftnote]', f).hidden = false;
+        $('[data-ptitle]', f).textContent = paperName(f.product.value) || 'กากตะกอนหม้อกรอง';
+      }
+      const saveText = () => {
+        const fd = Object.fromEntries(new FormData(f)); NOSAVE.forEach(k => delete fd[k]);
+        try { localStorage.setItem(DKEY, JSON.stringify(fd)); } catch {}
+      };
+      f.addEventListener('input', saveText); f.addEventListener('change', saveText);
+      $('[data-draftclear]', f).onclick = async () => {
+        try { localStorage.removeItem(DKEY); } catch {}
+        await Draft.del(DKEY);
+        renderRequestForm(host, opts);
+      };
+      Draft.get(DKEY).then(d => {
+        docsRestored = true;
+        if (!d) return;
+        Object.entries(d).forEach(([id, list]) => {
+          picked[id] = (list || []).filter(x => x && x.file).map(x => {
+            if (x.sign) pageSigns.set(x.file, x.sign);
+            if (x.rot) rotations.set(x.file, x.rot);
+            return x.file;
+          });
+        });
+        if (Object.values(picked).some(l => l.length)) $('[data-draftnote]', f).hidden = false;
+        drawDocs();
+      });
+    }
+    const saveDocs = () => {
+      if (!draftOn || !docsRestored) return;
+      const out = {};
+      Object.entries(picked).forEach(([id, list]) => { out[id] = list.map(file => ({ file, sign: pageSigns.get(file) || '', rot: rotations.get(file) || 0 })); });
+      Draft.set(DKEY, out);
+    };
     function drawDocs() {
+      saveDocs();
       const own = f.ownership.value || 'own';
       const have = v.docs || {};
       $('[data-docs]', f).innerHTML = docsFor(own).map(d => {
@@ -306,6 +377,7 @@
         const full = Object.assign({}, v, data, { id: res.id, created: v.created || new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI, sign });
         if (!(await uploadFormPdf(full, auth))) failed++;
         if (failed) toast(`อัปโหลดไม่สำเร็จ ${failed} รายการ — แนบใหม่ได้ภายหลัง`, true);
+        if (draftOn) { try { localStorage.removeItem(DKEY); } catch {} await Draft.del(DKEY); }
         opts.onDone && opts.onDone(res.id, data, sign);
       } catch (x) {
         toast(x.message, true);
@@ -777,6 +849,6 @@
   }
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
-    productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
+    productName, paperName, histText, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
     askSignature, docButtons, reviewAndUpload };
 })();

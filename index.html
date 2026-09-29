@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929s">
+<link rel="stylesheet" href="assets/style.css?v=20260929t">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -71,8 +71,9 @@
     <div class="card">
       <h3>ตรวจสถานะคำขอ</h3>
       <form id="checkForm" class="grid2">
-        <label>เลขที่คำขอ<input name="id" required placeholder="2569-0001" inputmode="numeric"></label>
-        <label>เบอร์โทรที่ใช้ยื่น<input name="phone" required inputmode="tel"></label>
+        <label>เลขที่คำขอ หรือ เลขบัตรประชาชน<input name="id" required placeholder="2569-0001 หรือ 13 หลัก" inputmode="numeric"></label>
+        <label>เบอร์โทรที่ใช้ยื่น (เต็ม 10 หลัก)<input name="phone" required inputmode="tel" placeholder="08x-xxx-xxxx"></label>
+        <p class="span2 hint">ลืมเลขที่คำขอ? ใส่เลขบัตรประชาชนแทนได้ — จะแสดงทุกคำขอของคุณ</p>
         <div class="span2 actions"><button class="btn primary">ตรวจสถานะ</button></div>
       </form>
     </div>
@@ -81,9 +82,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929s"></script>
-<script src="assets/logic.js?v=20260929s"></script>
-<script src="assets/app.js?v=20260929s"></script>
+<script src="assets/config.js?v=20260929t"></script>
+<script src="assets/logic.js?v=20260929t"></script>
+<script src="assets/app.js?v=20260929t"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -134,10 +135,18 @@
     const out = $('[data-result]');
     out.innerHTML = '<div class="card muted">กำลังค้นหา…</div>';
     try {
-      const { req: r } = await api('status', { id: cf.id.value.trim(), phone: digits(cf.phone.value) });
+      const res = await api('status', { id: cf.id.value.trim(), phone: digits(cf.phone.value) });
+      const reqs = res.reqs || [res.req];
+      out.innerHTML = (reqs.length > 1 ? `<p class="hint">พบ ${reqs.length} คำขอ</p>` : '') + reqs.map(card).join('');
+      reqs.forEach(r => bindUploads(r, $(`[data-rid="${r.id}"]`, out)));
+    } catch (x) {
+      out.innerHTML = `<div class="card"><b>${esc(x.message)}</b></div>`;
+    }
+  }
+  function card(r) {
       const s = STATUS[r.status] || {};
       const need = docsFor(r.ownership || 'own');
-      out.innerHTML = `<div class="card">
+      return `<div class="card" data-rid="${esc(r.id)}">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><h3>${esc(r.id)}</h3>${statusBadge(r.status)}</div>
         ${stepper(r.status)}
         <p><b>${esc(s.label || r.status)}</b></p>
@@ -155,9 +164,11 @@
           return `<div class="docrow"><div>${esc(d.label)} ${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : '<span class="muted">– ยังไม่มี</span>'}</div>
             ${r.canUpload ? FC.docButtons(d.id) : ''}</div>`;
         }).join('')}</div>
-        <details style="margin-top:14px"><summary>ประวัติ</summary><ul class="timeline">${r.history.slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.a)}</li>`).join('')}</ul></details>
+        <details style="margin-top:14px"><summary>ประวัติ</summary><ul class="timeline">${r.history.slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(FC.histText(h.a))}</li>`).join('')}</ul></details>
       </div>`;
-      $$('[data-doc]', out).forEach(inp => inp.addEventListener('change', async () => {
+  }
+  function bindUploads(r, el) {
+      $$('[data-doc]', el).forEach(inp => inp.addEventListener('change', async () => {
         const files = [...inp.files]; if (!files.length) return;
         const lbl = inp.parentElement, was = lbl.firstChild.textContent; lbl.firstChild.textContent = 'กำลังอัปโหลด…';
         try {
@@ -165,9 +176,6 @@
           if (sent) { toast('แนบไฟล์เรียบร้อย'); runCheck(); } else lbl.firstChild.textContent = was;
         } catch (x) { toast(x.message, true); lbl.firstChild.textContent = was; }
       }));
-    } catch (x) {
-      out.innerHTML = `<div class="card"><b>${esc(x.message)}</b></div>`;
-    }
   }
 
   const start = (location.hash || '').slice(1);
