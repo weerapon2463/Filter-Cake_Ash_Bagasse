@@ -423,14 +423,14 @@
     let empty = true, last = null;
     function fit() {
       const r = c.getBoundingClientRect(), k = window.devicePixelRatio || 1;
-      if (!r.width) return;
+      if (!r.width || (c.width === Math.round(r.width * k) && c.height === Math.round(r.height * k))) return;
       const keep = empty ? null : c.toDataURL();
-      c.width = r.width * k; c.height = r.height * k;
+      c.width = Math.round(r.width * k); c.height = Math.round(r.height * k);
       g.setTransform(k, 0, 0, k, 0, 0); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#1d3f9a'; g.lineWidth = 2.6;
       if (keep) loadImg(keep).then(im => g.drawImage(im, 0, 0, r.width, r.height));
     }
     const pos = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-    c.addEventListener('pointerdown', e => { if (!c.width || c.width < 10) fit(); c.setPointerCapture(e.pointerId); last = pos(e); });
+    c.addEventListener('pointerdown', e => { fit(); try { c.setPointerCapture(e.pointerId); } catch (x) {} last = pos(e); e.preventDefault(); });
     c.addEventListener('pointermove', e => {
       if (!last) return;
       const p = pos(e); g.beginPath(); g.moveTo(...last); g.lineTo(...p); g.stroke(); last = p;
@@ -438,7 +438,7 @@
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => c.addEventListener(t, () => (last = null)));
     $('[data-sigclear]', host).onclick = () => { g.clearRect(0, 0, c.width, c.height); empty = true; host.classList.remove('signed'); };
-    requestAnimationFrame(fit); window.addEventListener('resize', fit);
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(c); else window.addEventListener('resize', fit);
     return {
       isEmpty: () => empty,
       toDataURL() { // ตัดขอบว่าง ให้ลายเซ็นเต็มกรอบเวลาวางบนเอกสาร
