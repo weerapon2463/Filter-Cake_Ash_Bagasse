@@ -274,6 +274,7 @@
       };
       f.addEventListener('input', saveText); f.addEventListener('change', saveText);
       $('[data-draftclear]', f).onclick = async () => {
+        docsRestored = false; // หยุดบันทึกจากฟอร์มนี้ทันที (กันงานที่ค้างอยู่มาบันทึกทับหลังล้าง)
         try { localStorage.removeItem(DKEY); } catch {}
         await Draft.del(DKEY);
         renderRequestForm(host, opts);
@@ -378,7 +379,7 @@
         const full = Object.assign({}, v, data, { id: res.id, created: v.created || new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI, sign });
         if (!(await uploadFormPdf(full, auth))) failed++;
         if (failed) toast(`อัปโหลดไม่สำเร็จ ${failed} รายการ — แนบใหม่ได้ภายหลัง`, true);
-        if (draftOn) { try { localStorage.removeItem(DKEY); } catch {} await Draft.del(DKEY); }
+        if (draftOn) { docsRestored = false; try { localStorage.removeItem(DKEY); } catch {} await Draft.del(DKEY); }
         opts.onDone && opts.onDone(res.id, data, sign);
       } catch (x) {
         toast(x.message, true);
