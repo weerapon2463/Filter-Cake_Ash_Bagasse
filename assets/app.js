@@ -327,14 +327,15 @@
   }
   // โลโก้บริษัทบนใบคำร้อง — โหลดไว้ก่อน เพื่อให้ขึ้นทันทีตอนพิมพ์/สร้าง PDF
   const LOGO_URL = new URL('assets/logo.png', location.href).href;
-  const logoImg = new Image(); logoImg.src = LOGO_URL;
-  const logoReady = () => (logoImg.decode ? logoImg.decode() : Promise.resolve()).catch(() => {});
+  new Image().src = LOGO_URL;
+  const imagesReady = el => Promise.all([...el.querySelectorAll('img')].map(i =>
+    (i.decode ? i.decode() : Promise.resolve()).catch(() => {})));
 
   async function printPaper(r) {
     let el = $('#print');
     if (!el) { el = document.createElement('div'); el.id = 'print'; document.body.appendChild(el); }
     el.innerHTML = paperHtml(r);
-    await logoReady();
+    await imagesReady(el);
     window.print();
   }
 
@@ -370,13 +371,14 @@
 
   // ใบคำร้อง → PDF หน้าตาเหมือนฉบับพิมพ์
   async function formPdf(r) {
-    await Promise.all([loadScript(JSPDF), loadScript(H2C), logoReady()]);
+    await Promise.all([loadScript(JSPDF), loadScript(H2C)]);
     const box = document.createElement('div');
     box.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;padding:45px 57px;background:#fff;color:#000';
     box.innerHTML = paperHtml(r);
     document.body.appendChild(box);
     try {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      await imagesReady(box);
       const c = await window.html2canvas(box, { scale: 2, backgroundColor: '#fff' });
       const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
       const h = Math.min(297, c.height * 210 / c.width);
