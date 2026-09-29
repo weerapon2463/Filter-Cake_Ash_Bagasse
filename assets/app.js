@@ -23,10 +23,10 @@
     { id: 'consent', label: 'ใช้ที่ดินผู้อื่น ไม่มีสัญญาเช่า (ทำหนังสือยินยอม)' },
   ];
   const DOCS = [
-    { id: 'idcard', label: 'สำเนาบัตรประจำตัวประชาชน', when: 'all' },
-    { id: 'house', label: 'สำเนาทะเบียนบ้าน', when: 'all' },
-    { id: 'farmer', label: 'สำเนาบัตรประจำตัวชาวไร่อ้อย / ทะเบียนเกษตรกร', when: 'all' },
-    { id: 'deed', label: 'สำเนาโฉนดที่ดิน (ทั้ง 2 หน้า)', when: 'all' },
+    { id: 'idcard', label: 'สำเนาบัตรประจำตัวประชาชน', paper: 'สำเนาบัตรประจำตัวประชาชน', when: 'all' },
+    { id: 'house', label: 'สำเนาทะเบียนบ้าน', paper: 'สำเนาทะเบียนบ้าน', when: 'all' },
+    { id: 'farmer', label: 'สำเนาบัตรประจำตัวชาวไร่อ้อย / ทะเบียนเกษตรกร', paper: 'สำเนาทะเบียนเกษตรกร/ชาวไร่อ้อย', when: 'all' },
+    { id: 'deed', label: 'สำเนาโฉนดที่ดิน (ทั้ง 2 หน้า)', paper: 'สำเนาโฉนดที่ดินพื้นที่ที่ต้องการนำสิ่งปฏิกูลไปใช้ประโยชน์', when: 'all' },
     { id: 'lease', label: 'สำเนาสัญญาเช่าที่ดิน', when: 'lease' },
     { id: 'consent', label: 'หนังสือยินยอมให้ใช้ประโยชน์ในที่ดิน', when: 'consent' },
     { id: 'owner', label: 'สำเนาบัตรประชาชน + ทะเบียนบ้าน ของเจ้าของโฉนด', when: 'lease consent' },
@@ -64,6 +64,7 @@
     for (let i = 0; i < 12; i++) s += +id[i] * (13 - i);
     return (11 - (s % 11)) % 10 === +id[12];
   }
+  const paperName = id => (CFG.PRODUCTS.find(p => p.id === id) || {}).paper || '';
   const productName = id => (CFG.PRODUCTS.find(p => p.id === id) || {}).short || id || '–';
   const statusBadge = st => {
     const s = STATUS[st] || { short: st, tone: 'gray' };
@@ -104,7 +105,8 @@
   }
 
   // ---------- API ----------
-  const LIVE = !!CFG.API_URL;
+  // ?demo=1 = บังคับโหมดทดลอง (ใช้ฝึกอบรม/สาธิต โดยไม่แตะข้อมูลจริง)
+  const LIVE = !!CFG.API_URL && !/[?&]demo=1/.test(location.search);
   async function api(action, payload = {}) {
     if (!LIVE) return Mock.call(action, JSON.parse(JSON.stringify(payload)));
     const r = await fetch(CFG.API_URL, {
@@ -154,55 +156,66 @@
     const zoneLocked = staff && opts.user.role === 'zone';
     const opt = (list, cur) => list.map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('');
     host.innerHTML = `
-    <form class="reqform" novalidate>
+    <form class="reqform paper" novalidate>
       <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <fieldset>
-        <legend>1. ชนิดสิ่งปฏิกูลที่ต้องการ</legend>
-        <div class="choice-grid">
-          ${CFG.PRODUCTS.map(p => `<label class="choice"><input type="radio" name="product" value="${p.id}" ${v.product === p.id ? 'checked' : ''} required><span>${esc(p.name)}</span></label>`).join('')}
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>2. ข้อมูลผู้ขอ</legend>
-        <div class="grid2">
-          <label>ชื่อ-นามสกุล *<input name="name" value="${esc(v.name)}" required autocomplete="name"></label>
-          <label>เบอร์โทร *<input name="phone" value="${esc(v.phone)}" inputmode="tel" required autocomplete="tel" placeholder="08x-xxx-xxxx"></label>
-          <label>เลขบัตรประชาชน 13 หลัก *<input name="citizenId" value="${esc(v.citizenId)}" inputmode="numeric" maxlength="17" required></label>
-          <label>เลขที่โควตา / เลขชาวไร่<input name="quotaNo" value="${esc(v.quotaNo)}"></label>
-          <label>เขต *<select name="zone" required ${zoneLocked ? 'disabled' : ''}><option value="">– เลือกเขต –</option>${opt(CFG.ZONES, zoneLocked ? opts.user.zone : v.zone)}</select></label>
-          <label class="span2">ที่อยู่ (บ้านเลขที่ หมู่ ตำบล อำเภอ จังหวัด) *<input name="address" value="${esc(v.address)}" required></label>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>3. ที่ดินที่จะนำไปใช้ประโยชน์ (ปรับปรุงพื้นที่ปลูกอ้อย)</legend>
-        <div class="grid2">
-          <label>จำนวนไร่ *<input name="rai" type="number" min="0.25" step="0.25" value="${esc(v.rai)}" inputmode="decimal" required></label>
-          <label class="span2">ที่ดินตั้งอยู่ (หมู่ ตำบล อำเภอ จังหวัด) *<input name="landLocation" value="${esc(v.landLocation)}" required></label>
-          <label>ระยะทางจากโรงงาน (กม.)<input name="distanceKm" type="number" min="0" step="0.1" value="${esc(v.distanceKm)}" inputmode="decimal"></label>
-          <div class="calc"><span>จำนวนที่ขออนุญาต (ไร่ × ${CFG.TONS_PER_RAI})</span><b data-tons>–</b> ตัน</div>
-        </div>
-        <div class="radios">
-          <span class="lbl">สิทธิ์ในที่ดิน *</span>
-          ${OWNERSHIP.map(o => `<label><input type="radio" name="ownership" value="${o.id}" ${(v.ownership || 'own') === o.id ? 'checked' : ''}> ${esc(o.label)}</label>`).join('')}
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>4. การขนส่ง</legend>
+      <div class="p-head">
+        <div class="p-no"><span>เล่มที่</span><i>${esc(v.bookNo || '')}</i></div>
+        <div class="p-org">${esc(CFG.ORG_NAME)}</div>
+        <div class="p-no"><span>เลขที่</span><i>${esc(v.id || '(ออกให้อัตโนมัติ)')}</i></div>
+      </div>
+      <h3 class="p-title">ใบคำร้องขอ<span data-ptitle>${esc(paperName(v.product) || 'กากตะกอนหม้อกรอง')}</span></h3>
+      <div class="p-date">วันที่ <u>${fmtDate(v.created || new Date().toISOString())}</u></div>
+
+      <div class="p-line">
+        <label class="p-f w60">ข้าพเจ้า<input name="name" value="${esc(v.name)}" required autocomplete="name" placeholder="ชื่อ-นามสกุล"></label>
+        <label class="p-f w40">เบอร์โทรศัพท์ติดต่อ<input name="phone" value="${esc(v.phone)}" inputmode="tel" required autocomplete="tel" placeholder="08x-xxx-xxxx"></label>
+      </div>
+      <div class="p-line">
+        <label class="p-f w60">เลขที่บัตรประชาชน<input name="citizenId" value="${esc(v.citizenId)}" inputmode="numeric" maxlength="17" required placeholder="13 หลัก"></label>
+        <label class="p-f w40">เขตอ้อยที่<select name="zone" required ${zoneLocked ? 'disabled' : ''}><option value="">– เลือก –</option>${opt(CFG.ZONES, zoneLocked ? opts.user.zone : v.zone)}</select></label>
+      </div>
+      <div class="p-line">
+        <label class="p-f w100">บ้านเลขที่<input name="address" value="${esc(v.address)}" required placeholder="บ้านเลขที่ หมู่ ตำบล อำเภอ จังหวัด"></label>
+      </div>
+      <div class="p-line">
+        <label class="p-f w60">มีความประสงค์ขอนำ<select name="product" required><option value="">– เลือกชนิด –</option>${CFG.PRODUCTS.map(p => `<option value="${p.id}" ${v.product === p.id ? 'selected' : ''}>${esc(p.paper)}</option>`).join('')}</select></label>
+        <div class="p-f w40">จำนวน <u class="p-calc" data-tons>–</u> ตัน/ปี</div>
+      </div>
+      <div class="p-line"><div class="p-f w100 p-text">จาก <u>${esc(CFG.ORG_NAME)}</u> ทะเบียนโรงงานเลขที่ <u>${esc(CFG.FACTORY_REG)}</u></div></div>
+      <div class="p-line">
+        <label class="p-f w30">ที่ดินมีเนื้อที่ (ไร่)<input name="rai" type="number" min="0.25" step="0.25" value="${esc(v.rai)}" inputmode="decimal" required></label>
+        <label class="p-f w70">ตั้งอยู่<input name="landLocation" value="${esc(v.landLocation)}" required placeholder="หมู่ ตำบล อำเภอ จังหวัด"></label>
+      </div>
+      <div class="p-line"><div class="p-f w100 p-text">เพื่อนำไปใช้ <u>${esc(CFG.PURPOSE)}</u> จริง</div></div>
+      <div class="p-line">
+        <label class="p-f w50">ประเภทรถ<select name="truckType">${opt(CFG.TRUCK_TYPES, v.truckType || '')}</select></label>
+        <label class="p-f w50">ทะเบียน<input name="plate" value="${esc(v.plate)}" placeholder="เช่น กพ-1234 พิษณุโลก"></label>
+      </div>
+
+      <div class="p-sec">โดยมีเอกสารที่ใช้เป็นหลักฐานประกอบใบคำร้อง ดังนี้ <small class="muted">(ถ่ายรูปแนบได้ — ต้องรับรองสำเนาถูกต้องทุกแผ่น)</small></div>
+      <div class="radios">
+        <span class="lbl">สิทธิ์ในที่ดิน</span>
+        ${OWNERSHIP.map(o => `<label><input type="radio" name="ownership" value="${o.id}" ${(v.ownership || 'own') === o.id ? 'checked' : ''}> ${esc(o.label)}</label>`).join('')}
+      </div>
+      <ol class="p-docs" data-docs></ol>
+      ${staff ? '' : '<p class="hint">ถ้ายังไม่มีรูปครบ ยื่นคำร้องก่อนได้ แล้วส่งเอกสารฉบับจริงให้หัวหน้าเขต หรือเข้ามาแนบเพิ่มที่เมนู “ตรวจสถานะ”</p>'}
+
+      <div class="p-sec">เงื่อนไขทางบริษัท</div>
+      <ol class="p-cond">${CFG.CONDITIONS.map(c => `<li>${esc(c)}</li>`).join('')}</ol>
+
+      <details class="p-extra" ${staff ? 'open' : ''}><summary>ข้อมูลเพิ่มเติม (สำหรับใบปะหน้าเขต)</summary>
         <div class="grid2">
           <label>รถขนส่ง<select name="transport">${opt(CFG.TRANSPORT, v.transport || CFG.TRANSPORT[0])}</select></label>
-          <label>ประเภทรถ / ทะเบียน (ถ้าใช้รถผู้ขอ)<input name="truck" value="${esc(v.truck)}" placeholder="เช่น บรรทุก 10 ล้อ กพ-1234"></label>
+          <label>ระยะทางจากโรงงาน (กม.)<input name="distanceKm" type="number" min="0" step="0.1" value="${esc(v.distanceKm)}" inputmode="decimal"></label>
+          ${staff ? `<label>เล่มที่ (ใบคำร้องกระดาษ)<input name="bookNo" value="${esc(v.bookNo)}"></label>` : ''}
           <label class="span2">หมายเหตุ<textarea name="note" rows="2">${esc(v.note)}</textarea></label>
         </div>
-      </fieldset>
-      <fieldset>
-        <legend>5. แนบรูปเอกสาร <small>(ถ่ายรูปด้วยมือถือได้ — ต้องรับรองสำเนาถูกต้องทุกแผ่น)</small></legend>
-        <div data-docs></div>
-        ${staff ? '' : '<p class="hint">ถ้ายังไม่มีรูปครบ ยื่นคำขอก่อนได้ แล้วส่งเอกสารฉบับจริงให้หัวหน้าเขต หรือเข้ามาแนบเพิ่มที่เมนู “ตรวจสถานะ”</p>'}
-      </fieldset>
-      ${staff ? '' : `<label class="consent"><input type="checkbox" name="agree" required> ข้าพเจ้ายืนยันว่าข้อมูลเป็นความจริง และยอมรับเงื่อนไขของบริษัทฯ (รับเองตามคิว, ขนย้ายต้องปิดคลุมท้ายรถทุกครั้ง, พื้นที่กองต้องไม่กระทบแปลงผู้อื่น, บริษัทฯ ไม่รับผิดชอบค่าใช้จ่ายการขนส่ง)</label>`}
+      </details>
+
+      ${staff ? '' : `<label class="consent"><input type="checkbox" name="agree" required> ข้าพเจ้าขอรับรองว่าข้อมูลข้างต้นเป็นความจริง และขอยอมรับเงื่อนไขทางบริษัทฯ ทุกประการ (ลงชื่อจริงบนใบคำร้องที่พิมพ์ เมื่อส่งเอกสารให้หัวหน้าเขต)</label>`}
       <div class="actions">
         ${opts.onCancel ? '<button type="button" class="btn ghost" data-cancel>ยกเลิก</button>' : ''}
-        <button class="btn primary" type="submit">${v.id ? 'บันทึก' : 'ยื่นคำขอ'}</button>
+        <button class="btn primary" type="submit">${v.id ? 'บันทึก' : 'ยื่นคำร้อง'}</button>
       </div>
     </form>`;
     const f = $('form', host);
@@ -212,8 +225,8 @@
       const have = v.docs || {};
       $('[data-docs]', f).innerHTML = docsFor(own).map(d => {
         const n = (have[d.id] || []).length + (picked[d.id] || []).length;
-        return `<div class="docrow"><div><b>${esc(d.label)}</b>${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : ''}</div>
-          <label class="btn small">📷 เลือกรูป/ไฟล์<input type="file" accept="image/*,application/pdf" multiple data-doc="${d.id}" hidden></label></div>`;
+        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ${n} ไฟล์</span>` : ''}</div>
+          <label class="btn small">📷 แนบรูป<input type="file" accept="image/*,application/pdf" multiple data-doc="${d.id}" hidden></label></li>`;
       }).join('');
     }
     function calc() { const r = num(f.rai.value); $('[data-tons]', f).textContent = r ? fmtNum(r * CFG.TONS_PER_RAI, 1) : '–'; }
@@ -221,6 +234,7 @@
     f.rai.addEventListener('input', calc);
     f.addEventListener('change', e => {
       if (e.target.name === 'ownership') drawDocs();
+      if (e.target.name === 'product') $('[data-ptitle]', f).textContent = paperName(f.product.value) || 'กากตะกอนหม้อกรอง';
       if (e.target.dataset.doc) { picked[e.target.dataset.doc] = (picked[e.target.dataset.doc] || []).concat([...e.target.files]); drawDocs(); }
     });
     if (opts.onCancel) $('[data-cancel]', f).onclick = opts.onCancel;
@@ -243,9 +257,9 @@
       try {
         const data = {
           id: v.id, product: fd.product, name: fd.name.trim(), phone: digits(fd.phone), citizenId: digits(fd.citizenId),
-          quotaNo: fd.quotaNo, zone: fd.zone, address: fd.address, rai: num(fd.rai),
+          zone: fd.zone, bookNo: fd.bookNo, address: fd.address, rai: num(fd.rai),
           landLocation: fd.landLocation, distanceKm: fd.distanceKm, ownership: fd.ownership, transport: fd.transport,
-          truck: fd.truck, note: fd.note, website: fd.website,
+          truckType: fd.truckType, plate: fd.plate, note: fd.note, website: fd.website,
         };
         const res = staff ? await api('save', { pin: opts.user.pin, data }) : await api('submit', { data });
         const auth = staff ? { pin: opts.user.pin } : { phone: data.phone };
@@ -260,7 +274,7 @@
         opts.onDone && opts.onDone(res.id, data);
       } catch (x) {
         toast(x.message, true);
-      } finally { btn.disabled = false; btn.textContent = v.id ? 'บันทึก' : 'ยื่นคำขอ'; }
+      } finally { btn.disabled = false; btn.textContent = v.id ? 'บันทึก' : 'ยื่นคำร้อง'; }
     });
     return f;
   }
@@ -274,11 +288,43 @@
     }).join('')}</ol>`;
   }
 
+  // ---------- พิมพ์ใบคำร้อง A4 (จำลองแบบฟอร์มกระดาษของบริษัท) ----------
+  function printPaper(r) {
+    let el = $('#print');
+    if (!el) { el = document.createElement('div'); el.id = 'print'; document.body.appendChild(el); }
+    const dot = (v, w) => `<span class="dl" style="min-width:${w}">${esc(v || '')}</span>`;
+    const d = new Date(r.created || Date.now());
+    const need = docsFor(r.ownership || 'own');
+    el.innerHTML = `<div class="pp">
+      <div class="pp-head"><div>เล่มที่${dot(r.bookNo, '28mm')}</div><div class="pp-org">${esc(CFG.ORG_NAME)}</div><div>เลขที่${dot(r.id, '32mm')}</div></div>
+      <div class="pp-title">ใบคำร้องขอ${esc(paperName(r.product) || 'กากตะกอนหม้อกรอง')}</div>
+      <div class="pp-r">วันที่${dot(isNaN(d) ? '' : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }), '60mm')}</div>
+      <p class="pp-l ind">ข้าพเจ้า${dot(r.name, '72mm')} เบอร์โทรศัพท์ติดต่อ${dot(r.phone, '36mm')}</p>
+      <p class="pp-l">เลขที่บัตรประชาชน${dot(r.citizenId, '75mm')} เขตอ้อยที่${dot(r.zone, '40mm')}</p>
+      <p class="pp-l">บ้านเลขที่${dot(r.address, '160mm')}</p>
+      <p class="pp-l">มีความประสงค์ขอนำ${dot('', '18mm')}${dot(paperName(r.product), '45mm')}จำนวน${dot(r.tons ? fmtNum(r.tons, 2) : '', '40mm')}ตัน/ปี</p>
+      <p class="pp-l">จาก <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${esc(CFG.ORG_NAME)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u> ทะเบียนโรงงานเลขที่ <u>&nbsp;${esc(CFG.FACTORY_REG)}&nbsp;</u></p>
+      <p class="pp-l">ที่ดินมีเนื้อที่${dot((r.rai ? fmtNum(r.rai, 2) + ' ไร่' : '') + (r.landLocation ? '  ตั้งอยู่ ' + r.landLocation : ''), '155mm')}</p>
+      <p class="pp-l">เพื่อนำไปใช้ <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${esc(CFG.PURPOSE)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u> จริง</p>
+      <p class="pp-l" style="margin-top:8mm">ประเภทรถ${dot(r.truckType, '62mm')}ทะเบียน${dot(r.plate, '55mm')}</p>
+      <div>โดยมีเอกสารที่ใช้เป็นหลักฐานประกอบใบคำร้อง ดังนี้</div>
+      <ol class="pp-ol">${need.map(x => `<li>${esc(x.paper || x.label)} 1 ฉบับ</li>`).join('')}</ol>
+      <div>เงื่อนไขทางบริษัท</div>
+      <ol class="pp-ol">${CFG.CONDITIONS.map(c => `<li>${esc(c)}</li>`).join('')}</ol>
+      <div class="pp-sign">
+        <div>ลงชื่อ${dot('', '55mm')}ผู้ขอ<br>(${dot(r.name, '55mm')})</div>
+        <div>ลงชื่อ${dot('', '55mm')}ผู้รับเรื่อง<br>(${dot('', '55mm')})</div>
+      </div>
+      <div class="pp-sign one"><div>ลงชื่อ${dot('', '55mm')}ผู้อนุมัติคำขอ<br>(${dot('', '50mm')})</div></div>
+    </div>`;
+    window.print();
+  }
+
   function footer() {
     const el = $('#footer');
     if (el) el.innerHTML = `${esc(CFG.DEPT_NAME)} · ${esc(CFG.ORG_NAME)} · โทร ${esc(CFG.CONTACT_TEL)}${LIVE ? '' : '<br><span class="demo-flag">โหมดทดลอง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น</span>'}`;
   }
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
-    productName, statusBadge, toast, readFileForUpload, api, LIVE, renderRequestForm, stepper, footer };
+    productName, paperName, printPaper, statusBadge, toast, readFileForUpload, api, LIVE, renderRequestForm, stepper, footer };
 })();

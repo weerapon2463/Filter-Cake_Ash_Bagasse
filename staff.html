@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929b">
+<link rel="stylesheet" href="assets/style.css?v=20260929c">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -55,9 +55,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929b"></script>
-<script src="assets/logic.js?v=20260929b"></script>
-<script src="assets/app.js?v=20260929b"></script>
+<script src="assets/config.js?v=20260929c"></script>
+<script src="assets/logic.js?v=20260929c"></script>
+<script src="assets/app.js?v=20260929c"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -207,12 +207,12 @@
         <dt>ชนิด</dt><dd>${esc(productName(r.product))}</dd>
         <dt>ชื่อ-นามสกุล</dt><dd>${esc(r.name)} · <a href="tel:${esc(r.phone)}">${esc(r.phone)}</a></dd>
         <dt>บัตรประชาชน</dt><dd>${esc(r.citizenId)}</dd>
-        <dt>โควตา / เขต</dt><dd>${esc(r.quotaNo || '–')} · เขต ${esc(r.zone)}</dd>
+        <dt>เล่มที่ / เขต</dt><dd>${esc(r.bookNo || '–')} · เขต ${esc(r.zone)}</dd>
         <dt>ที่อยู่</dt><dd>${esc(r.address)}</dd>
         <dt>ที่ดินตั้งอยู่</dt><dd>${esc(r.landLocation)}</dd>
         <dt>สิทธิ์ในที่ดิน</dt><dd>${esc((OWNERSHIP.find(o => o.id === r.ownership) || {}).label || '–')}</dd>
         <dt>จำนวน</dt><dd><b>${fmtNum(r.rai, 2)} ไร่ · ${fmtNum(r.tons, 1)} ตัน</b> · ระยะทาง ${esc(r.distanceKm || '–')} กม.</dd>
-        <dt>ขนส่ง</dt><dd>${esc(r.transport)} ${esc(r.truck || '')}</dd>
+        <dt>ขนส่ง</dt><dd>${esc(r.transport)} · ${esc(r.truckType || '')} ${esc(r.plate || '')}</dd>
         ${r.note ? `<dt>หมายเหตุ</dt><dd>${esc(r.note)}</dd>` : ''}
         ${r.batchNo ? `<dt>ชุดยื่น</dt><dd>${esc(r.batchNo)} (${fmtDate(r.filedDate)})</dd>` : ''}
         ${r.permitNo || r.approvedDate ? `<dt>อนุญาต</dt><dd>${esc(r.permitNo || '')} ${fmtDate(r.approvedDate)}</dd>` : ''}
@@ -231,10 +231,11 @@
       <div class="cta">${actionsFor([r]).map(([st, lbl]) => `<button class="btn ${st === 'fix' || st === 'rejected' ? '' : 'primary'}" data-act="${st}">${esc(lbl)}</button>`).join('')}
         ${editable ? '<button class="btn" data-edit>แก้ไขข้อมูล</button>' : ''}
         ${me.role === 'env' || ['submitted', 'fix', 'zone_ok'].includes(r.status) ? (r.status !== 'cancelled' ? '<button class="btn danger" data-act="cancelled">ยกเลิกคำขอ</button>' : '') : ''}
-        <button class="btn" data-print1>🖨 ใบปะหน้า</button></div>
+        <button class="btn" data-paper>🖨 ใบคำร้อง</button><button class="btn" data-print1>🖨 ใบปะหน้า</button></div>
       <details><summary>ประวัติ (${(r.history || []).length})</summary><ul class="timeline">${(r.history || []).slice().reverse().map(h => `<li>${fmtDate(h.t, true)} — ${esc(h.by)}: ${esc(h.a)}</li>`).join('')}</ul></details>`);
     $$('[data-act]', body).forEach(b => (b.onclick = () => askStatus([r.id], b.dataset.act)));
     $('[data-print1]', body).onclick = () => printCover([r]);
+    $('[data-paper]', body).onclick = () => FC.printPaper(r);
     const ed = $('[data-edit]', body);
     if (ed) ed.onclick = () => {
       const host = openDlg('แก้ไข ' + r.id, '<div></div>').firstElementChild;

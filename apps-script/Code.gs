@@ -9,6 +9,8 @@ var SEASON = '2569/70';
 var TONS_PER_RAI = 20;
 var BATCH_MAX = 30;
 var WRITE_ACTIONS = ['submit', 'upload', 'save', 'checks', 'setStatus'];
+var ROOT_FOLDER_ID = '15C0mQHPmuD6Yy6KRKI7zo7DPHr8psBqQ'; // โฟลเดอร์ Drive ของโปรเจกต์ (Sheet อยู่ในนี้)
+var UPLOAD_FOLDER_NAME = 'ไฟล์เอกสารคำขอ';
 
 function setup() {
   var ss = SpreadsheetApp.getActive();
@@ -37,7 +39,10 @@ function folder_() {
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty('FOLDER_ID');
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
-  var f = DriveApp.createFolder('คำขอสิ่งปฏิกูล — ไฟล์เอกสาร');
+  var parent;
+  try { parent = DriveApp.getFolderById(ROOT_FOLDER_ID); } catch (e) { parent = DriveApp.getRootFolder(); }
+  var it = parent.getFoldersByName(UPLOAD_FOLDER_NAME);
+  var f = it.hasNext() ? it.next() : parent.createFolder(UPLOAD_FOLDER_NAME);
   props.setProperty('FOLDER_ID', f.getId());
   return f;
 }
@@ -51,6 +56,7 @@ function users_() {
 
 function loadDb_() {
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_REQ);
+  if (!sh) { setup(); sh = SpreadsheetApp.getActive().getSheetByName(SHEET_REQ); }
   var vals = sh.getDataRange().getDisplayValues();
   var rows = vals.slice(1).filter(function (r) { return r[0]; }).map(function (r, i) {
     var o = { _row: i + 2 };

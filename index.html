@@ -7,7 +7,7 @@
 <meta name="description" content="ยื่นคำขอรับกากใบอ้อย / ขี้หม้อกรอง / ขี้เถ้า ออนไลน์ และตรวจสถานะคำขอ">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929b">
+<link rel="stylesheet" href="assets/style.css?v=20260929c">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -28,7 +28,7 @@
       <h2>กากใบอ้อย · ขี้หม้อกรอง · ขี้เถ้า</h2>
       <p class="muted">สำหรับชาวไร่อ้อยที่ต้องการนำไปปรับปรุงพื้นที่ปลูกอ้อย ประจำปีการผลิต <b data-season></b> — ขอรับได้ <b data-tpr></b> ตัน/ไร่ ตามกฎหมาย (ฟรี ห้ามจำหน่าย)</p>
       <div class="cta">
-        <button class="btn primary" data-go="apply">ยื่นคำขอออนไลน์</button>
+        <button class="btn primary" data-go="apply">ยื่นคำร้องออนไลน์</button>
         <button class="btn" data-go="check">ตรวจสถานะคำขอ</button>
       </div>
     </div>
@@ -80,9 +80,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929b"></script>
-<script src="assets/logic.js?v=20260929b"></script>
-<script src="assets/app.js?v=20260929b"></script>
+<script src="assets/config.js?v=20260929c"></script>
+<script src="assets/logic.js?v=20260929c"></script>
+<script src="assets/app.js?v=20260929c"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -111,13 +111,14 @@
           <div class="big">${esc(id)}</div>
           <p class="muted">จดหรือถ่ายภาพหน้าจอนี้ไว้ ใช้คู่กับเบอร์โทรเพื่อตรวจสถานะ<br>
           จำนวนที่ขอ ${fmtNum(data.rai, 2)} ไร่ × ${CFG.TONS_PER_RAI} = <b>${fmtNum(data.rai * CFG.TONS_PER_RAI, 1)} ตัน</b><br>
-          กรุณาส่งเอกสารฉบับจริง (รับรองสำเนา) ให้หัวหน้าเขต ${esc(data.zone)}</p>
+          กรุณาพิมพ์ใบคำร้อง ลงชื่อ แล้วส่งพร้อมเอกสารฉบับจริง (รับรองสำเนา) ให้หัวหน้าเขต ${esc(data.zone)}</p>
           <div class="cta" style="justify-content:center">
             <button class="btn primary" id="goCheck">ดูสถานะ / แนบเอกสารเพิ่ม</button>
-            <button class="btn" id="again">ยื่นคำขออีกรายการ</button>
+            <button class="btn" id="printPaper">🖨 พิมพ์ใบคำร้อง</button><button class="btn" id="again">ยื่นคำขออีกรายการ</button>
           </div></div>`;
         $('#goCheck').onclick = () => { fillCheck(id, data.phone); show('check'); runCheck(); };
         $('#again').onclick = drawForm;
+        $('#printPaper').onclick = () => FC.printPaper(Object.assign({}, data, { id, created: new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI }));
       },
     });
   }

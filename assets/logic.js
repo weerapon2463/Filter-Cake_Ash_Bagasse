@@ -3,9 +3,9 @@
 var FC_FIELDS = [
   ['id', 'เลขที่คำขอ'], ['created', 'วันที่ยื่น'], ['channel', 'ช่องทาง'], ['season', 'ปีการผลิต'],
   ['product', 'ชนิด'], ['name', 'ชื่อ-นามสกุล'], ['phone', 'เบอร์โทร'], ['citizenId', 'เลขบัตรประชาชน'],
-  ['quotaNo', 'เลขโควตา'], ['zone', 'เขต'], ['address', 'ที่อยู่'],
+  ['bookNo', 'เล่มที่'], ['zone', 'เขต'], ['address', 'ที่อยู่'],
   ['landLocation', 'ที่ดินตั้งอยู่'], ['rai', 'จำนวนไร่'], ['tons', 'จำนวนขอ(ตัน)'], ['distanceKm', 'ระยะทาง(กม.)'],
-  ['ownership', 'สิทธิ์ในที่ดิน'], ['transport', 'รถขนส่ง'], ['truck', 'ประเภทรถ/ทะเบียน'], ['note', 'หมายเหตุผู้ขอ'],
+  ['ownership', 'สิทธิ์ในที่ดิน'], ['transport', 'รถขนส่ง'], ['truckType', 'ประเภทรถ'], ['plate', 'ทะเบียนรถ'], ['note', 'หมายเหตุผู้ขอ'],
   ['status', 'สถานะ'], ['fixReason', 'สิ่งที่ต้องแก้ไข'], ['batchNo', 'ชุดยื่นกรมโรงงาน'], ['filedDate', 'วันที่ยื่นกรมโรงงาน'],
   ['permitNo', 'เลขที่หนังสืออนุญาต'], ['approvedDate', 'วันที่อนุญาต'], ['ticketNo', 'เลขที่ตั๋วนำออก'],
   ['deliveredTons', 'นำออกจริง(ตัน)'], ['trips', 'จำนวนเที่ยว'], ['doneDate', 'วันที่นำออก'], ['staffNote', 'หมายเหตุเจ้าหน้าที่'],
@@ -15,8 +15,8 @@ var FC_JSON_FIELDS = ['docs', 'checks', 'history'];
 
 var FC_LOGIC_FACTORY = function (env) {
   var TPR = env.tonsPerRai || 20, BATCH_MAX = env.batchMax || 30, SEASON = env.season || '2569/70';
-  var EDITABLE = ['product', 'name', 'phone', 'citizenId', 'quotaNo', 'zone', 'address', 'landLocation', 'rai',
-    'distanceKm', 'ownership', 'transport', 'truck', 'note'];
+  var EDITABLE = ['product', 'name', 'phone', 'citizenId', 'bookNo', 'zone', 'address', 'landLocation', 'rai',
+    'distanceKm', 'ownership', 'transport', 'truckType', 'plate', 'note'];
   var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'filed', 'approved', 'done', 'rejected', 'cancelled'];
   var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
   var UPLOAD_OPEN = ['submitted', 'zone_ok', 'fix'];

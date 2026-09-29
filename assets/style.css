@@ -139,3 +139,46 @@ footer#footer { text-align: center; color: var(--muted); font-size: .88rem; padd
   #print h2 { text-align: center; font-size: 14pt; }
   @page { size: A4; margin: 12mm; }
 }
+
+/* ฟอร์มออนไลน์หน้าตาแบบใบคำร้องกระดาษ */
+.paper { max-width: 820px; margin: 0 auto; }
+.p-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.p-head .p-no:last-child { text-align: right; }
+.p-no span { color: var(--muted); margin-right: 6px; }
+.p-no i { font-style: normal; border-bottom: 1px dotted var(--muted); padding: 0 6px; }
+.p-org { font-weight: 700; text-align: center; }
+.p-title { text-align: center; margin: 14px 0 4px; font-size: 1.2rem; }
+.p-date { text-align: right; margin-bottom: 14px; }
+.p-date u, .p-f u { text-decoration: none; border-bottom: 1px dotted var(--muted); padding: 0 8px; font-weight: 600; }
+.p-line { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; align-items: end; }
+.p-f { display: flex; align-items: baseline; gap: 8px; color: var(--text); font-size: 1rem; flex: 1 1 auto; white-space: nowrap; }
+.p-f.w30 { flex-basis: 26%; } .p-f.w40 { flex-basis: 36%; } .p-f.w50 { flex-basis: 45%; } .p-f.w60 { flex-basis: 55%; } .p-f.w70 { flex-basis: 64%; } .p-f.w100 { flex-basis: 100%; }
+.p-f.p-text { white-space: normal; display: block; line-height: 2; }
+.p-f input, .p-f select { flex: 1; min-width: 0; margin: 0; border: 0; border-bottom: 1.5px dotted var(--muted); border-radius: 0; background: transparent; padding: 6px 4px; }
+.p-f input:focus, .p-f select:focus { outline: none; border-bottom: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.p-calc { font-size: 1.15rem; min-width: 70px; display: inline-block; text-align: center; }
+.p-sec { font-weight: 700; margin: 18px 0 6px; }
+.p-docs, .p-cond { margin: 0 0 6px; padding-left: 26px; }
+.p-cond li { margin-bottom: 4px; }
+.p-docs .docrow { display: list-item; border-bottom: 1px dashed var(--line); padding: 6px 0; }
+.p-docs .docrow > div { display: inline; }
+.p-docs .docrow .btn { float: right; margin-top: -4px; }
+.p-extra { margin: 16px 0; background: var(--surface2); border-radius: 10px; padding: 10px 14px; }
+.p-extra summary { cursor: pointer; font-weight: 600; }
+.p-extra .grid2 { margin-top: 10px; }
+@media (max-width: 620px) { .p-f, .p-f.w30, .p-f.w40, .p-f.w50, .p-f.w60, .p-f.w70 { flex-basis: 100%; } .p-head { grid-template-columns: 1fr 1fr; } .p-org { grid-column: 1 / -1; order: -1; } }
+
+/* ใบคำร้อง A4 สำหรับพิมพ์ */
+.pp { font-family: 'Sarabun', sans-serif; font-size: 13.5pt; line-height: 1.55; color: #000; }
+.pp-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.pp-head > div:last-child { text-align: right; }
+.pp-org { font-weight: 700; font-size: 14pt; }
+.pp-title { text-align: center; margin: 5mm 0 4mm; }
+.pp-r { text-align: right; margin-bottom: 5mm; }
+.pp-l { margin: 0 0 4.5mm; }
+.pp-l.ind { padding-left: 20mm; white-space: nowrap; }
+.dl { display: inline-block; border-bottom: 1px dotted #000; padding: 0 2mm; text-align: center; line-height: 1.2; }
+.pp-ol { margin: 1mm 0 2mm; padding-left: 12mm; }
+.pp-ol li { margin-bottom: 1mm; }
+.pp-sign { display: flex; justify-content: space-around; margin-top: 10mm; text-align: center; line-height: 2.2; }
+.pp-sign.one { justify-content: center; margin-top: 8mm; }
