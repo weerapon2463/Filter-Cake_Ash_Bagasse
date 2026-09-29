@@ -677,7 +677,7 @@
         g.save(); g.beginPath(); g.rect(L.fx, L.fy, L.fw, L.fh); g.clip();
         g.translate(L.fx + L.fw / 2, L.fy + L.fh / 2); g.rotate(-Math.atan2(L.fh, L.fw));
         const fs = Math.max(11, L.fw / 26);
-        g.font = `700 ${fs}px Sarabun, sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(255, 80, 80, .45)';
+        g.font = `700 ${fs}px Sarabun, sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(255, 80, 80, .32)';
         const t = `ใช้สำหรับขอรับสิ่งปฏิกูล ${CFG.ORG_NAME} เท่านั้น`, diag = Math.hypot(L.fw, L.fh);
         for (let y = -diag / 2, n = 0; y < diag / 2; y += fs * 3.4, n++) g.fillText(t, (n % 2) * fs * 3, y);
         g.restore();
