@@ -328,8 +328,11 @@
   // โลโก้บริษัทบนใบคำร้อง — โหลดไว้ก่อน เพื่อให้ขึ้นทันทีตอนพิมพ์/สร้าง PDF
   const LOGO_URL = new URL('assets/logo.png', location.href).href;
   new Image().src = LOGO_URL;
-  const imagesReady = el => Promise.all([...el.querySelectorAll('img')].map(i =>
-    (i.decode ? i.decode() : Promise.resolve()).catch(() => {})));
+  const imagesReady = el => Promise.race([ // รอรูปโหลด แต่ไม่เกิน 3 วิ (กันปุ่มพิมพ์ค้าง)
+    Promise.all([...el.querySelectorAll('img')].map(i => i.complete ? null
+      : new Promise(ok => { i.onload = i.onerror = ok; }))),
+    new Promise(ok => setTimeout(ok, 3000)),
+  ]);
 
   async function printPaper(r) {
     let el = $('#print');
