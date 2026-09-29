@@ -170,10 +170,11 @@
       q.onupgradeneeded = () => q.result.createObjectStore('kv');
       q.onsuccess = () => ok(q.result); q.onerror = () => bad(q.error);
     });
-    const op = (mode, fn) => open().then(db => new Promise((ok, bad) => {
+    let queue = Promise.resolve(); // ทำทีละคำสั่งตามลำดับ (กัน "บันทึก" ที่ค้างอยู่มาทับ "ล้าง")
+    const op = (mode, fn) => (queue = queue.catch(() => {}).then(() => open().then(db => new Promise((ok, bad) => {
       const t = db.transaction('kv', mode), r = fn(t.objectStore('kv'));
       t.oncomplete = () => { db.close(); ok(r.result); }; t.onerror = () => bad(t.error);
-    }));
+    }))));
     return {
       get: k => op('readonly', s => s.get(k)).catch(() => null),
       set: (k, v) => op('readwrite', s => s.put(v, k)).catch(() => {}),
@@ -292,7 +293,7 @@
       });
     }
     const saveDocs = () => {
-      if (!draftOn || !docsRestored) return;
+      if (!draftOn || !docsRestored || !f.isConnected) return; // ฟอร์มถูกล้าง/ส่งแล้ว ไม่ต้องบันทึก
       const out = {};
       Object.entries(picked).forEach(([id, list]) => { out[id] = list.map(file => ({ file, sign: pageSigns.get(file) || '', rot: rotations.get(file) || 0 })); });
       Draft.set(DKEY, out);
