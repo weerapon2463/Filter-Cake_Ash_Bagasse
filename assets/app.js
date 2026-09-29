@@ -248,13 +248,16 @@
       const b = e.target.closest('[data-rm]');
       if (b) { const [doc, i] = b.dataset.rm.split(':'); picked[doc].splice(+i, 1); return drawDocs(); }
       const v2 = e.target.closest('[data-view]');
-      if (v2) { await reviewDocs(groupsOf(v2.dataset.view), { title: 'ตัวอย่างสำเนาเอกสาร', mark: markNow() }); drawDocs(); }
+      if (v2) { await reviewDocs(groupsOf(v2.dataset.view), { title: 'ตัวอย่างสำเนาเอกสาร', mark: markNow(), signRequired: !staff }); drawDocs(); }
     });
     f.rai.addEventListener('input', calc);
     f.addEventListener('change', e => {
       if (e.target.name === 'ownership') drawDocs();
       if (e.target.name === 'product') $('[data-ptitle]', f).textContent = paperName(f.product.value) || 'กากตะกอนหม้อกรอง';
-      if (e.target.dataset.doc) { picked[e.target.dataset.doc] = (picked[e.target.dataset.doc] || []).concat([...e.target.files]); drawDocs(); }
+      if (e.target.dataset.doc) {
+        const doc = e.target.dataset.doc, files = [...e.target.files]; e.target.value = '';
+        signEach(files, markNow(), { required: !staff }).then(ok => { picked[doc] = (picked[doc] || []).concat(ok); drawDocs(); });
+      }
     });
     if (opts.onCancel) $('[data-cancel]', f).onclick = opts.onCancel;
     f.addEventListener('submit', async e => {
@@ -276,7 +279,7 @@
       // ตรวจก่อนส่ง: ใบคำร้อง + เอกสารทุกหน้า (แก้/ลบได้)
       const preview = Object.assign({}, v, fd, { id: v.id || '(ออกให้เมื่อส่ง)', name: fd.name.trim(), created: v.created || new Date().toISOString(),
         rai: num(fd.rai), tons: num(fd.rai) * CFG.TONS_PER_RAI, sign: pad.isEmpty() ? '' : pad.toDataURL() });
-      const go = await reviewDocs(groupsOf().filter(gr => gr.files.length || !staff), { title: 'ตรวจก่อนส่ง', mark: markNow(),
+      const go = await reviewDocs(groupsOf().filter(gr => gr.files.length || !staff), { title: 'ตรวจก่อนส่ง', mark: markNow(), signRequired: !staff,
         formHtml: paperHtml(preview), okText: v.id ? 'ยืนยันบันทึก' : 'ยืนยันส่งคำร้อง' });
       drawDocs();
       if (!go) return;
@@ -383,6 +386,7 @@
   // ---------- หน้าสำเนาเอกสาร A4 (ใช้ทั้งตัวอย่างก่อนส่ง และ PDF จริง — หน้าตาเดียวกัน) ----------
   // mark = { product, name, sign (dataURL), preview (true = ยังไม่เซ็นก็แสดงช่องเซ็นว่าง) }
   const rotations = new WeakMap(); // File -> องศาที่ผู้ใช้หมุน
+  const pageSigns = new WeakMap(); // File -> ลายเซ็นที่เซ็นลงบนหน้านั้น (ขนาดเท่ากรอบ)
   const PAGE_W = 1240, PAGE_H = 1754; // A4 ที่ 150 dpi
   async function pageCanvas(file, mark = {}) {
     const img = await readFileForUpload(file); // ย่อเป็น JPEG ≤1800px
@@ -414,12 +418,19 @@
     for (let yy = -diag / 2, n = 0; yy < diag / 2; yy += 150, n++) g.fillText(text, (n % 2) * 160, yy);
     g.restore();
     // ช่องเซ็นรับรองสำเนา (ใต้รูป ชิดขวา)
-    if (mark.sign || mark.preview) {
-      const bw = 560, bh = stampH - 20, bx = PAGE_W - M - bw, by = y + h + 30;
-      g.strokeStyle = '#1d3f9a'; g.lineWidth = 3; g.setLineDash(mark.sign ? [] : [14, 10]); g.strokeRect(bx, by, bw, bh); g.setLineDash([]);
+    const own = mark.signing ? '' : pageSigns.get(file);
+    const bw = 560, bh = stampH - 20, bx = PAGE_W - M - bw, by = y + h + 30;
+    c.box = { x: bx / PAGE_W, y: by / PAGE_H, w: bw / PAGE_W, h: bh / PAGE_H };
+    if (own || mark.sign || mark.preview || mark.signing) {
+      const signed = !!(own || mark.sign);
+      g.strokeStyle = '#1d3f9a'; g.lineWidth = 3; g.setLineDash(signed ? [] : [14, 10]); g.strokeRect(bx, by, bw, bh); g.setLineDash([]);
       g.fillStyle = '#1d3f9a'; g.textAlign = 'center';
       g.font = '700 44px Sarabun, sans-serif'; g.fillText('สำเนาถูกต้อง', bx + bw / 2, by + 60);
-      if (mark.sign) {
+      if (own) g.drawImage(await loadImg(own), bx, by, bw, bh); // เซ็นตรงไหน อยู่ตรงนั้น
+      else if (mark.signing) {
+        g.font = '30px Sarabun, sans-serif'; g.fillStyle = '#8a97bd'; g.fillText('✍ เซ็นชื่อในกรอบนี้', bx + bw / 2, by + 150);
+        g.fillStyle = '#1d3f9a';
+      } else if (mark.sign) {
         const sig = await loadImg(mark.sign);
         const sh = 130, sw = Math.min(bw - 60, sh * sig.width / sig.height);
         g.drawImage(sig, bx + (bw - sw) / 2, by + 80, sw, sh);
@@ -457,12 +468,12 @@
         const total = groups.reduce((n, gr) => n + gr.files.length, 0);
         d.innerHTML = `<div class="dhead"><b>${esc(opts.title || 'ตรวจเอกสารก่อนส่ง')}</b><button type="button" class="btn small ghost" data-x aria-label="ปิด">✕</button></div>
           <div class="dbody">
-          <p class="muted">แตะหน้าเพื่อดูใหญ่ · ↻ หมุน · 📷 ถ่ายใหม่ · 🗑 ลบ — ลายน้ำและช่องเซ็นแสดงตามที่จะส่งจริง</p>
+          <p class="muted">แตะหน้าเพื่อดูใหญ่ · ✍ เซ็นใหม่ · ↻ หมุน · 📷 ถ่ายใหม่ · 🗑 ลบ — หน้าตาตามที่จะส่งจริง</p>
           ${opts.formHtml ? `<h4>ใบคำร้อง</h4><div class="pv-form"><div class="pv-paper">${opts.formHtml}</div></div>` : ''}
           ${groups.map((gr, gi) => `<h4>${esc(gr.label)} <small class="muted">${gr.files.length ? gr.files.length + ' หน้า' : 'ยังไม่มี'}</small></h4>
             <div class="pv-grid">${gr.files.map((f, fi) => `<figure class="pv-page" data-g="${gi}" data-i="${fi}">
               <div class="pv-img">${f.type.startsWith('image/') ? '<span class="muted">กำลังจัดหน้า…</span>' : '<b>ไฟล์ PDF</b><small>' + esc(f.name) + '</small>'}</div>
-              <figcaption>${f.type.startsWith('image/') ? '<button type="button" class="btn small" data-rot>↻</button>' : ''}
+              <figcaption>${f.type.startsWith('image/') ? '<button type="button" class="btn small" data-sign title="เซ็นใหม่">✍</button><button type="button" class="btn small" data-rot title="หมุน">↻</button>' : ''}
                 <label class="btn small">📷<input type="file" accept="image/*" capture="environment" data-re hidden></label>
                 <button type="button" class="btn small danger" data-del>🗑</button></figcaption></figure>`).join('')}</div>`).join('')}
           <div class="actions"><button type="button" class="btn ghost" data-x>${opts.okText ? 'กลับไปแก้' : 'ปิด'}</button>
@@ -473,8 +484,14 @@
           const gr = groups[+fig.dataset.g], i = +fig.dataset.i, f = gr.files[i];
           const rot = $('[data-rot]', fig);
           if (rot) rot.onclick = () => { rotations.set(f, ((rotations.get(f) || 0) + 90) % 360); draw(); };
+          const sg = $('[data-sign]', fig);
+          if (sg) sg.onclick = async () => { const got = await signPage(f, opts.mark, {}); if (got) gr.files[i] = got; draw(); };
           $('[data-del]', fig).onclick = () => { gr.files.splice(i, 1); draw(); };
-          $('[data-re]', fig).onchange = e => { if (e.target.files[0]) { gr.files[i] = e.target.files[0]; draw(); } };
+          $('[data-re]', fig).onchange = async e => {
+            const nf = e.target.files[0]; if (!nf) return;
+            const got = opts.signRequired ? await signPage(nf, opts.mark, { required: true }) : nf;
+            if (got) gr.files[i] = got; draw();
+          };
           $('.pv-img', fig).onclick = () => fig.classList.toggle('big');
         });
         // จัดหน้าทีละรูป (ไม่ให้ค้าง)
@@ -493,30 +510,44 @@
   }
 
   // ---------- ช่องเซ็นชื่อบนจอ ----------
-  function signaturePad(host) {
-    host.innerHTML = '<canvas aria-label="กรอบเซ็นชื่อ"></canvas><button type="button" class="btn small ghost" data-sigclear>ล้างลายเซ็น</button><span class="sighint">เซ็นตรงนี้</span>';
+  // ช่องเซ็นชื่อ — เส้นหนา/บางตามความเร็ว เหมือนปากกาลูกลื่นหมึกน้ำเงิน
+  // opts.overlay = วางทับกรอบบนหน้าเอกสาร (โปร่งใส ไม่มีปุ่มในกรอบ)
+  function signaturePad(host, opts = {}) {
+    host.innerHTML = '<canvas aria-label="กรอบเซ็นชื่อ"></canvas>' +
+      (opts.overlay ? '' : '<button type="button" class="btn small ghost" data-sigclear>ล้างลายเซ็น</button><span class="sighint">เซ็นตรงนี้</span>');
     const c = $('canvas', host), g = c.getContext('2d');
-    let empty = true, last = null;
+    let empty = true, last = null, lastW = 0;
+    const base = () => Math.max(2, c.getBoundingClientRect().width / 150); // ขนาดเส้นตามขนาดกรอบ
     function fit() {
       const r = c.getBoundingClientRect(), k = window.devicePixelRatio || 1;
       if (!r.width || (c.width === Math.round(r.width * k) && c.height === Math.round(r.height * k))) return;
       const keep = empty ? null : c.toDataURL();
       c.width = Math.round(r.width * k); c.height = Math.round(r.height * k);
-      g.setTransform(k, 0, 0, k, 0, 0); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#1d3f9a'; g.lineWidth = 2.6;
+      g.setTransform(k, 0, 0, k, 0, 0); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = g.fillStyle = '#1a3a8f';
       if (keep) loadImg(keep).then(im => g.drawImage(im, 0, 0, r.width, r.height));
     }
-    const pos = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-    c.addEventListener('pointerdown', e => { fit(); try { c.setPointerCapture(e.pointerId); } catch (x) {} last = pos(e); e.preventDefault(); });
+    const pos = e => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, t: e.timeStamp || Date.now() }; };
+    c.addEventListener('pointerdown', e => {
+      fit(); try { c.setPointerCapture(e.pointerId); } catch (x) {}
+      last = pos(e); lastW = base() * 1.1; e.preventDefault();
+      g.beginPath(); g.arc(last.x, last.y, lastW / 2, 0, Math.PI * 2); g.fill();
+    });
     c.addEventListener('pointermove', e => {
       if (!last) return;
-      const p = pos(e); g.beginPath(); g.moveTo(...last); g.lineTo(...p); g.stroke(); last = p;
+      const p = pos(e), dist = Math.hypot(p.x - last.x, p.y - last.y), v = dist / Math.max(1, p.t - last.t);
+      const w = Math.max(base() * .45, Math.min(base() * 1.5, base() * 1.6 - v * base() * .9));
+      lastW = lastW * .6 + w * .4; // เปลี่ยนความหนาแบบนุ่ม ๆ
+      g.lineWidth = lastW; g.beginPath(); g.moveTo(last.x, last.y); g.lineTo(p.x, p.y); g.stroke(); last = p;
       if (empty) { empty = false; host.classList.add('signed'); }
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => c.addEventListener(t, () => (last = null)));
-    $('[data-sigclear]', host).onclick = () => { g.clearRect(0, 0, c.width, c.height); empty = true; host.classList.remove('signed'); };
+    const clear = () => { g.clearRect(0, 0, c.width, c.height); empty = true; host.classList.remove('signed'); };
+    const cb = $('[data-sigclear]', host); if (cb) cb.onclick = clear;
     if (window.ResizeObserver) new ResizeObserver(fit).observe(c); else window.addEventListener('resize', fit);
     return {
       isEmpty: () => empty,
+      clear,
+      rawDataURL: () => c.toDataURL('image/png'), // ขนาดเท่ากรอบ (ใช้วางกลับตำแหน่งเดิม)
       toDataURL() { // ตัดขอบว่าง ให้ลายเซ็นเต็มกรอบเวลาวางบนเอกสาร
         const d = g.getImageData(0, 0, c.width, c.height).data;
         let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0;
@@ -530,6 +561,53 @@
       },
     };
   }
+
+  // ถ่ายรูปเสร็จ → เห็นหน้าสำเนา A4 ที่มีลายน้ำแล้ว → เซ็นลงกรอบ "สำเนาถูกต้อง" บนหน้านั้นเลย
+  // คืน File ที่ใช้ (อาจเป็นรูปที่ถ่ายใหม่) หรือ null ถ้ายกเลิก; opts.required = ต้องเซ็นก่อนกดใช้
+  function signPage(file, mark = {}, opts = {}) {
+    return new Promise(done => {
+      const d = document.createElement('dialog'); d.className = 'signpage';
+      document.body.appendChild(d); d.showModal();
+      const close = v => { d.close(); d.remove(); done(v); };
+      async function draw() {
+        d.innerHTML = `<div class="dhead"><b>เซ็นรับรองสำเนาถูกต้อง</b><button type="button" class="btn small ghost" data-x aria-label="ปิด">✕</button></div>
+          <div class="dbody"><p class="muted">ตรวจรูปให้ชัด แล้วใช้นิ้วเซ็นในกรอบ "สำเนาถูกต้อง" ด้านล่างรูป</p>
+          <div class="sp-wrap"><span class="muted">กำลังจัดหน้า…</span></div>
+          <div class="actions"><button type="button" class="btn ghost" data-x>ยกเลิก</button>
+            <label class="btn">📷 ถ่ายใหม่<input type="file" accept="image/*" capture="environment" data-re hidden></label>
+            <button type="button" class="btn" data-clear>ล้างลายเซ็น</button>
+            <button type="button" class="btn primary" data-ok>✓ ใช้หน้านี้</button></div></div>`;
+        $$('[data-x]', d).forEach(b => (b.onclick = () => close(null)));
+        $('[data-re]', d).onchange = e => { if (e.target.files[0]) { file = e.target.files[0]; draw(); } };
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        let c;
+        try { c = await pageCanvas(file, Object.assign({}, mark, { signing: true })); }
+        catch (x) { $('.sp-wrap', d).innerHTML = `<b class="tone-red">${esc(x.message)}</b>`; return; }
+        const b = c.box, wrap = $('.sp-wrap', d);
+        wrap.innerHTML = `<img src="${c.toDataURL('image/jpeg', 0.8)}" alt="หน้าสำเนาเอกสาร"><div class="sp-pad" style="left:${b.x * 100}%;top:${b.y * 100}%;width:${b.w * 100}%;height:${b.h * 100}%"></div>`;
+        const pad = signaturePad($('.sp-pad', wrap), { overlay: true });
+        $('.sp-pad', wrap).scrollIntoView({ block: 'center' });
+        $('[data-clear]', d).onclick = pad.clear;
+        $('[data-ok]', d).onclick = () => {
+          if (pad.isEmpty() && opts.required) return toast('เซ็นชื่อในกรอบ "สำเนาถูกต้อง" ก่อน', true);
+          if (pad.isEmpty()) pageSigns.delete(file); else pageSigns.set(file, pad.rawDataURL());
+          close(file);
+        };
+      }
+      draw();
+    });
+  }
+  // เซ็นทีละรูปตามลำดับ (PDF ข้ามไป) — คืนรายการที่ผู้ใช้กดใช้
+  async function signEach(files, mark, opts) {
+    const out = [];
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) { out.push(f); continue; }
+      const got = await signPage(f, mark, opts);
+      if (got) out.push(got);
+    }
+    return out;
+  }
+
   // ขอลายเซ็น (ตอนแนบเอกสารเพิ่มภายหลัง) — จำไว้จนปิดหน้า
   let sessionSign = '';
   function askSignature() {
@@ -576,9 +654,11 @@
 
   // อัปโหลดเอกสารประเภทเดียว: รูปทั้งหมดรวมเป็น PDF 1 ไฟล์, ไฟล์ PDF ส่งตามเดิม
   // แนบเพิ่มภายหลัง: ดูตัวอย่าง/แก้ก่อน แล้วค่อยส่ง — คืน false ถ้าผู้ใช้ยกเลิก
-  async function reviewAndUpload(id, auth, docId, files, mark) {
-    const gr = [{ docId, label: (DOCS.find(x => x.id === docId) || {}).label || docId, files: [...files] }];
-    if (!(await reviewDocs(gr, { title: 'ตรวจก่อนส่ง', mark, okText: 'ยืนยันส่งเอกสาร' })) || !gr[0].files.length) return false;
+  async function reviewAndUpload(id, auth, docId, files, mark, needSign) {
+    files = needSign ? await signEach([...files], mark, { required: true }) : [...files];
+    if (!files.length) return false;
+    const gr = [{ docId, label: (DOCS.find(x => x.id === docId) || {}).label || docId, files }];
+    if (!(await reviewDocs(gr, { title: 'ตรวจก่อนส่ง', mark, okText: 'ยืนยันส่งเอกสาร', signRequired: needSign })) || !gr[0].files.length) return false;
     await uploadDocs(id, auth, docId, gr[0].files, null, mark);
     return true;
   }
