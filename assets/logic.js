@@ -109,7 +109,7 @@ var FC_LOGIC_FACTORY = function (env) {
     },
     status: function (db, p) {
       var r = find(db, p.id), ph = digits(p.phone);
-      if (!r || ph.length < 4 || r.phone.slice(-ph.length) !== ph) return fail('ไม่พบคำขอ — ตรวจเลขที่คำขอและเบอร์โทรอีกครั้ง');
+      if (!r || ph.length < 9 || r.phone !== ph) return fail('ไม่พบคำขอ — ตรวจเลขที่คำขอและเบอร์โทรอีกครั้ง');
       return done(db, { req: publicView(r) });
     },
     upload: function (db, p) {

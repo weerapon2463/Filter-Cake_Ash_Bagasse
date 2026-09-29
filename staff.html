@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929r">
+<link rel="stylesheet" href="assets/style.css?v=20260929s">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -59,9 +59,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929r"></script>
-<script src="assets/logic.js?v=20260929r"></script>
-<script src="assets/app.js?v=20260929r"></script>
+<script src="assets/config.js?v=20260929s"></script>
+<script src="assets/logic.js?v=20260929s"></script>
+<script src="assets/app.js?v=20260929s"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -283,8 +283,14 @@
 
   function exportCsv(list) {
     const cols = FC_FIELDS.filter(([k]) => !['docs', 'checks', 'history'].includes(k));
-    const cell = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-    const csv = '﻿' + [cols.map(c => cell(c[1])).join(',')].concat(list.map(r => cols.map(([k]) => cell(k === 'product' ? productName(r[k]) : k === 'status' ? (STATUS[r[k]] || {}).short : r[k])).join(','))).join('\r\n');
+    // เบอร์/เลขบัตร: ="…" ให้ Excel เก็บเป็นข้อความ (ไม่ตัด 0 นำหน้า ไม่กลายเป็น 3.65E+12)
+    // ข้อความที่ขึ้นต้นด้วย = + - @ ใส่ ' นำหน้า กันถูกตีความเป็นสูตร
+    const cell = (v, k) => {
+      const s = String(v ?? '');
+      if (['phone', 'citizenId'].includes(k) && /^\d+$/.test(s)) return '="' + s + '"';
+      return '"' + (/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""') + '"';
+    };
+    const csv = '﻿' + [cols.map(c => cell(c[1])).join(',')].concat(list.map(r => cols.map(([k]) => cell(k === 'product' ? productName(r[k]) : k === 'status' ? (STATUS[r[k]] || {}).short : r[k], k)).join(','))).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     a.download = `คำขอสิ่งปฏิกูล-${new Date().toISOString().slice(0, 10)}.csv`;
