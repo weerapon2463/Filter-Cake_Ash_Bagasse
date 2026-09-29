@@ -70,7 +70,7 @@ var FC_LOGIC_FACTORY = function (env) {
     for (var i = 0; i < db.rows.length; i++) {
       var r = db.rows[i];
       if (r.id !== exceptId && r.season === SEASON && r.status !== 'cancelled' && r.citizenId === o.citizenId &&
-        r.product === o.product && String(r.landLocation).replace(/s/g, "") === String(o.landLocation).replace(/s/g, "")) return r;
+        r.product === o.product && String(r.landLocation).replace(/\s/g, '') === String(o.landLocation).replace(/\s/g, '')) return r;
     }
     return null;
   }
