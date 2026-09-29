@@ -7,7 +7,7 @@
 <meta name="description" content="ยื่นคำขอรับกากใบอ้อย / ขี้หม้อกรอง / ขี้เถ้า ออนไลน์ และตรวจสถานะคำขอ">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929c">
+<link rel="stylesheet" href="assets/style.css?v=20260929d">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -80,9 +80,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929c"></script>
-<script src="assets/logic.js?v=20260929c"></script>
-<script src="assets/app.js?v=20260929c"></script>
+<script src="assets/config.js?v=20260929d"></script>
+<script src="assets/logic.js?v=20260929d"></script>
+<script src="assets/app.js?v=20260929d"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -164,7 +164,7 @@
         const files = [...inp.files]; if (!files.length) return;
         const lbl = inp.parentElement; lbl.firstChild.textContent = 'กำลังอัปโหลด…';
         try {
-          for (const f of files) await api('upload', Object.assign({ id: r.id, phone: digits(cf.phone.value), docType: inp.dataset.doc }, await readFileForUpload(f)));
+          await FC.uploadDocs(r.id, { phone: digits(cf.phone.value) }, inp.dataset.doc, files);
           toast('แนบไฟล์เรียบร้อย'); runCheck();
         } catch (x) { toast(x.message, true); lbl.firstChild.textContent = '📷 แนบ'; }
       }));

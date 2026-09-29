@@ -9,7 +9,7 @@ var FC_FIELDS = [
   ['status', 'สถานะ'], ['fixReason', 'สิ่งที่ต้องแก้ไข'], ['batchNo', 'ชุดยื่นกรมโรงงาน'], ['filedDate', 'วันที่ยื่นกรมโรงงาน'],
   ['permitNo', 'เลขที่หนังสืออนุญาต'], ['approvedDate', 'วันที่อนุญาต'], ['ticketNo', 'เลขที่ตั๋วนำออก'],
   ['deliveredTons', 'นำออกจริง(ตัน)'], ['trips', 'จำนวนเที่ยว'], ['doneDate', 'วันที่นำออก'], ['staffNote', 'หมายเหตุเจ้าหน้าที่'],
-  ['docs', 'ไฟล์เอกสาร(JSON)'], ['checks', 'ตรวจเอกสาร(JSON)'], ['history', 'ประวัติ(JSON)'], ['updated', 'อัปเดตล่าสุด'],
+  ['folderUrl', 'โฟลเดอร์เอกสาร'], ['docs', 'ไฟล์เอกสาร(JSON)'], ['checks', 'ตรวจเอกสาร(JSON)'], ['history', 'ประวัติ(JSON)'], ['updated', 'อัปเดตล่าสุด'],
 ];
 var FC_JSON_FIELDS = ['docs', 'checks', 'history'];
 
@@ -20,6 +20,7 @@ var FC_LOGIC_FACTORY = function (env) {
   var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'filed', 'approved', 'done', 'rejected', 'cancelled'];
   var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
   var UPLOAD_OPEN = ['submitted', 'zone_ok', 'fix'];
+  var DOC_TYPES = ['form', 'idcard', 'house', 'farmer', 'deed', 'lease', 'consent', 'owner'];
 
   function digits(v) { return String(v == null ? '' : v).replace(/\D/g, ''); }
   function str(v, max) { return String(v == null ? '' : v).trim().slice(0, max || 300); }
@@ -120,13 +121,15 @@ var FC_LOGIC_FACTORY = function (env) {
         if (ph.length < 9 || r.phone !== ph) return fail('ไม่มีสิทธิ์แนบไฟล์');
         if (UPLOAD_OPEN.indexOf(r.status) < 0) return fail('คำขอนี้ปิดการแนบไฟล์แล้ว');
       }
-      if (!p.data || !p.docType) return fail('ไม่มีไฟล์');
-      if (p.data.length > 11 * 1024 * 1024) return fail('ไฟล์ใหญ่เกินไป');
-      var files = (r.docs[p.docType] || []);
+      if (!p.data || DOC_TYPES.indexOf(p.docType) < 0) return fail('ไม่มีไฟล์');
+      if (p.data.length > 14 * 1024 * 1024) return fail('ไฟล์ใหญ่เกินไป');
+      var replace = p.docType === 'form'; // ใบคำร้อง PDF: สร้างใหม่ทับฉบับเดิม
+      var files = replace ? [] : (r.docs[p.docType] || []);
       if (files.length >= 10) return fail('แนบได้สูงสุด 10 ไฟล์ต่อรายการ');
-      var f = env.storeFile(r.id, p.docType, { name: str(p.name, 120) || 'file', mime: str(p.mime, 80), data: p.data });
+      var f = env.storeFile(r, p.docType, { name: str(p.name, 120) || 'file', mime: str(p.mime, 80), data: p.data }, replace ? (r.docs.form || []) : null);
+      if (f.folderUrl) { r.folderUrl = f.folderUrl; delete f.folderUrl; }
       r.docs[p.docType] = files.concat([f]);
-      touch(db, r, u ? u.name : 'ผู้ขอ', 'แนบไฟล์ ' + p.docType);
+      touch(db, r, u ? u.name : 'ผู้ขอ', replace ? 'สร้างใบคำร้อง PDF' : 'แนบไฟล์ ' + p.docType);
       return done(db, { file: f });
     },
     login: function (db, p) {

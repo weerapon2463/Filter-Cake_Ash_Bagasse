@@ -109,12 +109,16 @@
   const LIVE = !!CFG.API_URL && !/[?&]demo=1/.test(location.search);
   async function api(action, payload = {}) {
     if (!LIVE) return Mock.call(action, JSON.parse(JSON.stringify(payload)));
-    const r = await fetch(CFG.API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // เลี่ยง CORS preflight
-      body: JSON.stringify(Object.assign({ action }, payload)),
-    });
-    const j = await r.json();
+    const DOWN = 'ระบบหลังบ้านยังไม่พร้อมใช้งาน (ผู้ดูแลยังไม่ได้เปิดสิทธิ์ Google) — ลองใหม่ภายหลัง หรือใช้โหมดทดลอง';
+    let r, j;
+    try {
+      r = await fetch(CFG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // เลี่ยง CORS preflight
+        body: JSON.stringify(Object.assign({ action }, payload)),
+      });
+    } catch (x) { throw new Error(navigator.onLine === false ? 'ไม่มีอินเทอร์เน็ต' : DOWN); }
+    try { j = await r.json(); } catch (x) { throw new Error(DOWN); }
     if (!j.ok) throw new Error(j.error || 'เกิดข้อผิดพลาด');
     return j;
   }
@@ -263,14 +267,17 @@
         };
         const res = staff ? await api('save', { pin: opts.user.pin, data }) : await api('submit', { data });
         const auth = staff ? { pin: opts.user.pin } : { phone: data.phone };
-        let failed = 0, done = 0;
-        const all = Object.entries(picked).flatMap(([t, files]) => files.map(file => [t, file]));
-        for (const [docType, file] of all) {
-          btn.textContent = `กำลังอัปโหลด ${++done}/${all.length}…`;
-          try { await api('upload', Object.assign({ id: res.id, docType }, auth, await readFileForUpload(file))); }
+        let failed = 0;
+        const types = Object.keys(picked).filter(t => picked[t].length);
+        for (let i = 0; i < types.length; i++) {
+          btn.textContent = `กำลังทำ PDF และอัปโหลด ${i + 1}/${types.length}…`;
+          try { await uploadDocs(res.id, auth, types[i], picked[types[i]]); }
           catch (x) { failed++; console.warn(x); }
         }
-        if (failed) toast(`อัปโหลดไม่สำเร็จ ${failed} ไฟล์ — แนบใหม่ได้ภายหลัง`, true);
+        btn.textContent = 'กำลังสร้างใบคำร้อง PDF…';
+        const full = Object.assign({}, v, data, { id: res.id, created: v.created || new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI });
+        if (!(await uploadFormPdf(full, auth))) failed++;
+        if (failed) toast(`อัปโหลดไม่สำเร็จ ${failed} รายการ — แนบใหม่ได้ภายหลัง`, true);
         opts.onDone && opts.onDone(res.id, data);
       } catch (x) {
         toast(x.message, true);
@@ -289,17 +296,15 @@
   }
 
   // ---------- พิมพ์ใบคำร้อง A4 (จำลองแบบฟอร์มกระดาษของบริษัท) ----------
-  function printPaper(r) {
-    let el = $('#print');
-    if (!el) { el = document.createElement('div'); el.id = 'print'; document.body.appendChild(el); }
+  function paperHtml(r) {
     const dot = (v, w) => `<span class="dl" style="min-width:${w}">${esc(v || '')}</span>`;
     const d = new Date(r.created || Date.now());
     const need = docsFor(r.ownership || 'own');
-    el.innerHTML = `<div class="pp">
+    return `<div class="pp">
       <div class="pp-head"><div>เล่มที่${dot(r.bookNo, '28mm')}</div><div class="pp-org">${esc(CFG.ORG_NAME)}</div><div>เลขที่${dot(r.id, '32mm')}</div></div>
       <div class="pp-title">ใบคำร้องขอ${esc(paperName(r.product) || 'กากตะกอนหม้อกรอง')}</div>
       <div class="pp-r">วันที่${dot(isNaN(d) ? '' : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }), '60mm')}</div>
-      <p class="pp-l ind">ข้าพเจ้า${dot(r.name, '72mm')} เบอร์โทรศัพท์ติดต่อ${dot(r.phone, '36mm')}</p>
+      <p class="pp-l ind">ข้าพเจ้า${dot(r.name, '66mm')} เบอร์โทรศัพท์ติดต่อ${dot(r.phone, '32mm')}</p>
       <p class="pp-l">เลขที่บัตรประชาชน${dot(r.citizenId, '75mm')} เขตอ้อยที่${dot(r.zone, '40mm')}</p>
       <p class="pp-l">บ้านเลขที่${dot(r.address, '160mm')}</p>
       <p class="pp-l">มีความประสงค์ขอนำ${dot('', '18mm')}${dot(paperName(r.product), '45mm')}จำนวน${dot(r.tons ? fmtNum(r.tons, 2) : '', '40mm')}ตัน/ปี</p>
@@ -317,14 +322,90 @@
       </div>
       <div class="pp-sign one"><div>ลงชื่อ${dot('', '55mm')}ผู้อนุมัติคำขอ<br>(${dot('', '50mm')})</div></div>
     </div>`;
+  }
+  function printPaper(r) {
+    let el = $('#print');
+    if (!el) { el = document.createElement('div'); el.id = 'print'; document.body.appendChild(el); }
+    el.innerHTML = paperHtml(r);
     window.print();
   }
 
+  // ---------- สร้าง PDF ในเบราว์เซอร์ (jsPDF + html2canvas จาก cdnjs โหลดเมื่อใช้) ----------
+  const libs = {};
+  function loadScript(src) {
+    return libs[src] || (libs[src] = new Promise((ok, bad) => {
+      const s = document.createElement('script'); s.src = src; s.onload = ok;
+      s.onerror = () => { delete libs[src]; bad(new Error('โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ต')); };
+      document.head.appendChild(s);
+    }));
+  }
+  const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  const H2C = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  const pdfOut = (doc, name) => ({ name, mime: 'application/pdf', data: doc.output('datauristring').split(',')[1] });
+
+  // รูปหลายรูป → PDF ไฟล์เดียว (A4 หน้าละรูป ย่อให้พอดีหน้า)
+  async function imagesToPdf(files, name) {
+    await loadScript(JSPDF);
+    const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    for (let i = 0; i < files.length; i++) {
+      const img = await readFileForUpload(files[i]); // ย่อเป็น JPEG ≤1800px
+      const el = await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = 'data:image/jpeg;base64,' + img.data; });
+      const landscape = el.width > el.height;
+      if (i) doc.addPage('a4', landscape ? 'l' : 'p'); else if (landscape) { doc.deletePage(1); doc.addPage('a4', 'l'); }
+      const pw = landscape ? 297 : 210, ph = landscape ? 210 : 297, m = 8;
+      const k = Math.min((pw - 2 * m) / el.width, (ph - 2 * m) / el.height);
+      const w = el.width * k, h = el.height * k;
+      doc.addImage(img.data, 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+    }
+    return pdfOut(doc, name);
+  }
+
+  // ใบคำร้อง → PDF หน้าตาเหมือนฉบับพิมพ์
+  async function formPdf(r) {
+    await Promise.all([loadScript(JSPDF), loadScript(H2C)]);
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;padding:45px 57px;background:#fff;color:#000';
+    box.innerHTML = paperHtml(r);
+    document.body.appendChild(box);
+    try {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      const c = await window.html2canvas(box, { scale: 2, backgroundColor: '#fff' });
+      const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
+      const h = Math.min(297, c.height * 210 / c.width);
+      doc.addImage(c.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, 210, h);
+      return pdfOut(doc, 'ใบคำร้อง.pdf');
+    } finally { box.remove(); }
+  }
+
+  // อัปโหลดเอกสารประเภทเดียว: รูปทั้งหมดรวมเป็น PDF 1 ไฟล์, ไฟล์ PDF ส่งตามเดิม
+  async function uploadDocs(id, auth, docType, files, onStep) {
+    files = [...files];
+    const imgs = files.filter(f => f.type.startsWith('image/')), others = files.filter(f => !f.type.startsWith('image/'));
+    const jobs = [];
+    if (imgs.length) jobs.push(() => imagesToPdf(imgs, docType + '.pdf'));
+    others.forEach(f => jobs.push(() => readFileForUpload(f)));
+    for (const job of jobs) {
+      onStep && onStep();
+      await api('upload', Object.assign({ id, docType }, auth, await job()));
+    }
+  }
+  async function uploadFormPdf(r, auth) {
+    try { await api('upload', Object.assign({ id: r.id, docType: 'form' }, auth, await formPdf(r))); return true; }
+    catch (x) { console.warn(x); return false; }
+  }
+
+  // คง ?demo=1 ไว้เมื่อย้ายหน้า
+  function keepDemoLinks() {
+    if (!/[?&]demo=1/.test(location.search)) return;
+    $$('a[href$=".html"]').forEach(a => (a.href = a.getAttribute('href') + '?demo=1'));
+  }
+
   function footer() {
+    keepDemoLinks();
     const el = $('#footer');
     if (el) el.innerHTML = `${esc(CFG.DEPT_NAME)} · ${esc(CFG.ORG_NAME)} · โทร ${esc(CFG.CONTACT_TEL)}${LIVE ? '' : '<br><span class="demo-flag">โหมดทดลอง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น</span>'}`;
   }
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
-    productName, paperName, printPaper, statusBadge, toast, readFileForUpload, api, LIVE, renderRequestForm, stepper, footer };
+    productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, renderRequestForm, stepper, footer };
 })();

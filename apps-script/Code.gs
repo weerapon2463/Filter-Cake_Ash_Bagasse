@@ -10,7 +10,13 @@ var TONS_PER_RAI = 20;
 var BATCH_MAX = 30;
 var WRITE_ACTIONS = ['submit', 'upload', 'save', 'checks', 'setStatus'];
 var ROOT_FOLDER_ID = '15C0mQHPmuD6Yy6KRKI7zo7DPHr8psBqQ'; // โฟลเดอร์ Drive ของโปรเจกต์ (Sheet อยู่ในนี้)
-var UPLOAD_FOLDER_NAME = 'ไฟล์เอกสารคำขอ';
+var UPLOAD_FOLDER_NAME = 'เอกสารคำขอ ' + SEASON.replace('/', '-');
+// โครงสร้างโฟลเดอร์: เอกสารคำขอ 2569-70 / 01 ขี้หม้อกรอง / เขต 01 / FC6970-0001 ชื่อผู้ขอ / 00 ใบคำร้อง.pdf …
+var PRODUCT_DIRS = { filtercake: '01 ขี้หม้อกรอง', leaf: '02 กากใบอ้อย', ash: '03 ขี้เถ้า' };
+var DOC_NAMES = {
+  form: '00 ใบคำร้อง', idcard: '01 สำเนาบัตรประชาชน', house: '02 สำเนาทะเบียนบ้าน', farmer: '03 สำเนาทะเบียนเกษตรกร',
+  deed: '04 สำเนาโฉนดที่ดิน', lease: '05 สัญญาเช่าที่ดิน', consent: '05 หนังสือยินยอมให้ใช้ที่ดิน', owner: '06 เอกสารเจ้าของโฉนด',
+};
 
 function setup() {
   var ss = SpreadsheetApp.getActive();
@@ -29,7 +35,10 @@ function setup() {
     ]).setNumberFormat('@');
     us.getRange(1, 1, 1, 4).setFontWeight('bold');
   }
-  folder_();
+  var root = folder_();
+  for (var k in PRODUCT_DIRS) child_(root, PRODUCT_DIRS[k]);
+  var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('แผ่น1') || ss.getSheetByName('ชีต1');
+  if (def && ss.getSheets().length > 1 && def.getLastRow() === 0) ss.deleteSheet(def);
   Logger.log('ตั้งค่าเสร็จ — ดู PIN ในแท็บ "%s" แล้ว Deploy เป็น Web app', SHEET_USERS);
 }
 
@@ -86,6 +95,29 @@ function saveDb_(db, changed) {
   });
 }
 
+function child_(parent, name) {
+  var it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
+function safeName_(v) { return String(v || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80); }
+function zoneDir_(z) { z = String(z || '-'); return 'เขต ' + (/^\d+$/.test(z) ? ('0' + z).slice(-2) : z); }
+
+// โฟลเดอร์ของคำขอ — สร้างครั้งแรก และย้าย/เปลี่ยนชื่อให้ตรงชนิด/เขต/ชื่อ ถ้าข้อมูลถูกแก้ภายหลัง
+function requestDir_(r) {
+  var props = PropertiesService.getScriptProperties();
+  var parent = child_(child_(folder_(), PRODUCT_DIRS[r.product] || '99 อื่น ๆ'), zoneDir_(r.zone));
+  var name = r.id + ' ' + safeName_(r.name);
+  var id = props.getProperty('DIR_' + r.id), dir = null;
+  if (id) { try { dir = DriveApp.getFolderById(id); if (dir.isTrashed()) dir = null; } catch (e) { dir = null; } }
+  if (!dir) { dir = parent.createFolder(name); props.setProperty('DIR_' + r.id, dir.getId()); return dir; }
+  var parents = dir.getParents();
+  if (!parents.hasNext() || parents.next().getId() !== parent.getId()) dir.moveTo(parent);
+  if (dir.getName() !== name) dir.setName(name);
+  return dir;
+}
+
+function fileId_(url) { var m = String(url || '').match(/[-\w]{25,}/); return m ? m[0] : ''; }
+
 function logic_() {
   return FC_LOGIC_FACTORY({
     now: function () { return new Date().toISOString(); },
@@ -97,13 +129,15 @@ function logic_() {
       p.setProperty('SEQ', String(n));
       return 'FC' + SEASON.slice(2, 4) + SEASON.slice(-2) + '-' + ('000' + n).slice(-4);
     },
-    storeFile: function (id, docType, f) {
-      var root = folder_();
-      var it = root.getFoldersByName(id);
-      var dir = it.hasNext() ? it.next() : root.createFolder(id);
-      var blob = Utilities.newBlob(Utilities.base64Decode(f.data), f.mime || 'application/octet-stream', docType + '_' + f.name);
-      var file = dir.createFile(blob);
-      return { name: file.getName(), url: file.getUrl(), size: file.getSize() };
+    storeFile: function (r, docType, f, replaceFiles) {
+      var dir = requestDir_(r);
+      (replaceFiles || []).forEach(function (old) { try { DriveApp.getFileById(fileId_(old.url)).setTrashed(true); } catch (e) {} });
+      var base = DOC_NAMES[docType] || docType;
+      var ext = f.mime === 'application/pdf' ? '.pdf' : (String(f.name).match(/\.\w{2,5}$/) || [''])[0];
+      var name = base + ext, n = 1;
+      while (dir.getFilesByName(name).hasNext()) name = base + ' (' + (++n) + ')' + ext;
+      var file = dir.createFile(Utilities.newBlob(Utilities.base64Decode(f.data), f.mime || 'application/octet-stream', name));
+      return { name: file.getName(), url: file.getUrl(), size: file.getSize(), folderUrl: dir.getUrl() };
     },
   });
 }
@@ -130,7 +164,13 @@ function handle_(p) {
     var db = loadDb_();
     var res = logic_().handle(db, p.action, p);
     pinGuard_(p, res);
-    if (res.ok && res.changed) saveDb_(db, res.changed);
+    if (res.ok && res.changed) {
+      if (p.action === 'save') res.changed.forEach(function (id) { // แก้ชนิด/เขต/ชื่อ → ย้ายโฟลเดอร์ตาม
+        var r = db.rows.filter(function (x) { return x.id === id; })[0];
+        if (r && r.folderUrl) try { requestDir_(r); } catch (e) {}
+      });
+      saveDb_(db, res.changed);
+    }
     delete res.dirty; delete res.changed;
     if (res.rows) res.rows = res.rows.map(function (r) { var o = {}; for (var k in r) if (k.charAt(0) !== '_') o[k] = r[k]; return o; });
     return res;
