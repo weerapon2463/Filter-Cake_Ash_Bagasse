@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929d">
+<link rel="stylesheet" href="assets/style.css?v=20260929e">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -57,14 +57,14 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929d"></script>
-<script src="assets/logic.js?v=20260929d"></script>
-<script src="assets/app.js?v=20260929d"></script>
+<script src="assets/config.js?v=20260929e"></script>
+<script src="assets/logic.js?v=20260929e"></script>
+<script src="assets/app.js?v=20260929e"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
   FC.footer();
-  if (!FC.LIVE) $('[data-demo-hint]').hidden = false; else $('[data-demo-link]').hidden = false;
+  if (FC.DEMO) $('[data-demo-hint]').hidden = false; else $('[data-demo-link]').hidden = false;
 
   let me = null, rows = [], filter = { status: '', q: '', zone: '', product: '' }, selected = new Set();
   const dlg = $('#dlg');

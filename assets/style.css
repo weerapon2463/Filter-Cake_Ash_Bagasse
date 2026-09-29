@@ -182,3 +182,7 @@ footer#footer { text-align: center; color: var(--muted); font-size: .88rem; padd
 .pp-ol li { margin-bottom: 1mm; }
 .pp-sign { display: flex; justify-content: space-around; margin-top: 10mm; text-align: center; line-height: 2.2; }
 .pp-sign.one { justify-content: center; margin-top: 8mm; }
+
+.demo-banner { background: var(--amber); color: #fff; text-align: center; padding: 6px 16px; font-size: .9rem; font-weight: 600; }
+.demo-banner a { color: #fff; }
+@media print { .demo-banner { display: none; } }

@@ -106,13 +106,15 @@
 
   // ---------- API ----------
   // ?demo=1 = บังคับโหมดทดลอง (ใช้ฝึกอบรม/สาธิต โดยไม่แตะข้อมูลจริง)
-  const LIVE = !!CFG.API_URL && !/[?&]demo=1/.test(location.search);
+  const DEMO = !CFG.API_URL || /[?&]demo=1/.test(location.search);
+  const ENDPOINT = DEMO ? CFG.DEMO_API_URL : CFG.API_URL;
+  const LIVE = !!ENDPOINT; // มี backend จริง (รวมเดโมกลาง) — ไม่ใช่เก็บในเบราว์เซอร์
   async function api(action, payload = {}) {
     if (!LIVE) return Mock.call(action, JSON.parse(JSON.stringify(payload)));
     const DOWN = 'ระบบหลังบ้านยังไม่พร้อมใช้งาน (ผู้ดูแลยังไม่ได้เปิดสิทธิ์ Google) — ลองใหม่ภายหลัง หรือใช้โหมดทดลอง';
     let r, j;
     try {
-      r = await fetch(CFG.API_URL, {
+      r = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // เลี่ยง CORS preflight
         body: JSON.stringify(Object.assign({ action }, payload)),
@@ -403,9 +405,10 @@
   function footer() {
     keepDemoLinks();
     const el = $('#footer');
-    if (el) el.innerHTML = `${esc(CFG.DEPT_NAME)} · ${esc(CFG.ORG_NAME)} · โทร ${esc(CFG.CONTACT_TEL)}${LIVE ? '' : '<br><span class="demo-flag">โหมดทดลอง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น</span>'}`;
+    if (el) el.innerHTML = `${esc(CFG.DEPT_NAME)} · ${esc(CFG.ORG_NAME)} · โทร ${esc(CFG.CONTACT_TEL)}${!DEMO ? '' : LIVE ? '<br><span class="demo-flag">โหมดทดลอง — ข้อมูลตัวอย่าง ทุกคนเห็นชุดเดียวกัน (รีเซ็ตทุกคืน) ห้ามใส่ข้อมูลจริง</span>' : '<br><span class="demo-flag">โหมดทดลอง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น</span>'}`;
+    if (DEMO && !$('.demo-banner')) document.body.insertAdjacentHTML('afterbegin', `<div class="demo-banner">🧪 โหมดทดลอง${LIVE ? ' — ข้อมูลตัวอย่างที่ทุกคนเห็นเหมือนกัน (ล้างกลับทุกคืน)' : ''} · ห้ามใส่ข้อมูลจริง${CFG.API_URL ? ' · <a href="' + location.pathname + '">ไปหน้าใช้งานจริง</a>' : ''}</div>`);
   }
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
-    productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, renderRequestForm, stepper, footer };
+    productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer };
 })();

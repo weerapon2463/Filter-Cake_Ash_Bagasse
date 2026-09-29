@@ -10,7 +10,14 @@ var TONS_PER_RAI = 20;
 var BATCH_MAX = 30;
 var WRITE_ACTIONS = ['submit', 'upload', 'save', 'checks', 'setStatus'];
 var ROOT_FOLDER_ID = '15C0mQHPmuD6Yy6KRKI7zo7DPHr8psBqQ'; // โฟลเดอร์ Drive ของโปรเจกต์ (Sheet อยู่ในนี้)
-var UPLOAD_FOLDER_NAME = 'เอกสารคำขอ ' + SEASON.replace('/', '-');
+// เดโมสาธารณะ = โปรเจกต์ Apps Script + Sheet แยก ที่มีไฟล์ Demo.gs บรรทัดเดียว: var DEMO_MODE = true;
+var IS_DEMO = typeof DEMO_MODE !== 'undefined' && DEMO_MODE === true;
+var DEMO_USERS = [
+  { pin: '000000', name: 'แผนกสิ่งแวดล้อม (ทดลอง)', role: 'env', zone: '' },
+  { pin: '111111', name: 'หัวหน้าเขต 1 (ทดลอง)', role: 'zone', zone: '1' },
+  { pin: '555555', name: 'หัวหน้าเขต 5 (ทดลอง)', role: 'zone', zone: '5' },
+];
+var UPLOAD_FOLDER_NAME = (IS_DEMO ? 'DEMO ' : '') + 'เอกสารคำขอ ' + SEASON.replace('/', '-');
 // โครงสร้างโฟลเดอร์: เอกสารคำขอ 2569-70 / 01 ขี้หม้อกรอง / เขต 01 / FC6970-0001 ชื่อผู้ขอ / 00 ใบคำร้อง.pdf …
 var PRODUCT_DIRS = { filtercake: '01 ขี้หม้อกรอง', leaf: '02 กากใบอ้อย', ash: '03 ขี้เถ้า' };
 var DOC_NAMES = {
@@ -30,8 +37,8 @@ function setup() {
     us.getRange('A:A').setNumberFormat('@');
     us.getRange(1, 1, 3, 4).setValues([
       ['PIN (6 หลัก)', 'ชื่อ', 'บทบาท (env=แผนกสิ่งแวดล้อม / zone=หัวหน้าเขต)', 'เขต'],
-      [randomPin_(), 'แผนกสิ่งแวดล้อม', 'env', ''],
-      [randomPin_(), 'หัวหน้าเขต 1', 'zone', '1'],
+      IS_DEMO ? ['000000', 'แผนกสิ่งแวดล้อม (ทดลอง) — เดโมใช้ PIN ชุดนี้ตายตัว', 'env', ''] : [randomPin_(), 'แผนกสิ่งแวดล้อม', 'env', ''],
+      IS_DEMO ? ['111111', 'หัวหน้าเขต 1 (ทดลอง)', 'zone', '1'] : [randomPin_(), 'หัวหน้าเขต 1', 'zone', '1'],
     ]).setNumberFormat('@');
     us.getRange(1, 1, 1, 4).setFontWeight('bold');
   }
@@ -39,6 +46,11 @@ function setup() {
   for (var k in PRODUCT_DIRS) child_(root, PRODUCT_DIRS[k]);
   var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('แผ่น1') || ss.getSheetByName('ชีต1');
   if (def && ss.getSheets().length > 1 && def.getLastRow() === 0) ss.deleteSheet(def);
+  if (IS_DEMO) {
+    if (loadDb_().rows.length === 0) seedDemo_();
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'resetDemo') ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger('resetDemo').timeBased().everyDays(1).atHour(3).create();
+  }
   Logger.log('ตั้งค่าเสร็จ — ดู PIN ในแท็บ "%s" แล้ว Deploy เป็น Web app', SHEET_USERS);
 }
 
@@ -57,6 +69,7 @@ function folder_() {
 }
 
 function users_() {
+  if (IS_DEMO) return DEMO_USERS;
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_USERS);
   if (!sh) return [];
   return sh.getDataRange().getDisplayValues().slice(1).filter(function (r) { return r[0]; })
@@ -186,4 +199,48 @@ function doPost(e) {
 
 function doGet() {
   return ContentService.createTextOutput(JSON.stringify({ ok: true, service: 'fc-request', season: SEASON })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ---------- เดโม: ข้อมูลตัวอย่าง + ล้างทุกคืน ----------
+function fakeCid_(n) {
+  var b = '3650' + ('00000000' + (10000123 + n * 7919)).slice(-8), s = 0;
+  for (var i = 0; i < 12; i++) s += Number(b[i]) * (13 - i);
+  return b + ((11 - (s % 11)) % 10);
+}
+function seedDemo_() {
+  var db = loadDb_(), L = logic_(), env = { pin: '000000' }, z1 = { pin: '111111' };
+  var people = [
+    ['นายสมชาย ตัวอย่าง', '1', 'filtercake', 12, 'env_ok'], ['นางสมศรี ทดลองดี', '1', 'filtercake', 25, 'filed'],
+    ['นายประยุทธ ไร่อ้อยงาม', '1', 'ash', 8, 'submitted'], ['นางบุญมี ใจเย็น', '5', 'filtercake', 40, 'approved'],
+    ['นายสุชาติ ขยันทำ', '5', 'leaf', 15, 'fix'], ['นางมาลี ดอกอ้อย', '5', 'ash', 30, 'done'],
+    ['นายวิชัย ปลูกดี', '3', 'filtercake', 18, 'zone_ok'], ['นางสาวกัลยา ตัวอย่าง', 'เกษตรกร', 'leaf', 10, 'submitted'],
+  ];
+  people.forEach(function (x, i) {
+    var res = L.handle(db, 'submit', { data: { product: x[2], name: x[0], phone: '08' + ('0000000' + (1234567 + i * 1111)).slice(-8),
+      citizenId: fakeCid_(i), zone: x[1], address: (10 + i) + ' ม.' + (i + 1) + ' ต.ท่าทอง อ.เมือง จ.พิษณุโลก', rai: x[3],
+      landLocation: 'ม.' + (i + 2) + ' ต.ท่าทอง อ.เมือง จ.พิษณุโลก', distanceKm: 3 + i, ownership: i % 3 === 1 ? 'lease' : 'own',
+      transport: i % 2 ? 'รถผู้ขอ' : 'รถโรงงาน', truckType: i % 2 ? 'รถบรรทุก 10 ล้อ' : '', plate: i % 2 ? '80-' + (1000 + i) + ' พล.' : '' } });
+    var id = res.id, st = x[4];
+    var path = { submitted: [], zone_ok: ['zone_ok'], fix: ['zone_ok', 'fix'], env_ok: ['zone_ok', 'env_ok'], filed: ['zone_ok', 'env_ok', 'filed'],
+      approved: ['zone_ok', 'env_ok', 'filed', 'approved'], done: ['zone_ok', 'env_ok', 'filed', 'approved', 'done'] }[st];
+    path.forEach(function (to) {
+      L.handle(db, 'setStatus', { pin: '000000', ids: [id], status: to, extra: {
+        fixReason: 'สำเนาโฉนดยังไม่รับรองสำเนาหน้า 2', batchNo: '6970/01', permitNo: '2569-313', ticketNo: '680210011024',
+        deliveredTons: x[3] * 20, trips: Math.ceil(x[3] * 20 / 15) } });
+    });
+  });
+  saveDb_(db, db.rows.map(function (r) { return r.id; }));
+}
+function resetDemo() {
+  if (!IS_DEMO) throw new Error('ใช้ได้เฉพาะโปรเจกต์เดโม');
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_REQ);
+    if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    var props = PropertiesService.getScriptProperties(), all = props.getProperties();
+    for (var k in all) if (k === 'SEQ' || k.indexOf('DIR_') === 0) props.deleteProperty(k);
+    var root = folder_(), it = root.getFolders();
+    while (it.hasNext()) { var f = it.next(); var sub = f.getFolders(); while (sub.hasNext()) sub.next().setTrashed(true); }
+    seedDemo_();
+  } finally { lock.releaseLock(); }
 }

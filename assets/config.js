@@ -1,6 +1,8 @@
 // ตั้งค่าระบบยื่นคำขอสิ่งปฏิกูลที่ไม่ใช้แล้ว (กากใบอ้อย / ขี้หม้อกรอง / ขี้เถ้า)
 // API_URL: URL ของ Apps Script web app (…/exec) — เว้นว่าง = โหมดทดลอง (เก็บข้อมูลในเบราว์เซอร์เครื่องนี้เท่านั้น)
 window.FC_CONFIG = {
+  // เดโมสาธารณะ (เปิดด้วย ?demo=1): ข้อมูลตัวอย่างชุดเดียวกันทุกคน ล้างกลับเป็นตัวอย่างทุกคืน 03:00 — เว้นว่าง = เก็บในเบราว์เซอร์
+  DEMO_API_URL: 'https://script.google.com/macros/s/AKfycbxwt1h_J8ypKWoKgKqA70d3ha84-5SPVPOOdBVU2hAeb_7zyF1VvDHrFOLY8Fpkerpo-w/exec',
   API_URL: 'https://script.google.com/macros/s/AKfycbxQh3XrH73ktIORCYEbPO-SJX7_CLy2qd0SejcS9fiaJCCl3NQuf5A_AlP3jnL5acqD/exec',
   ORG_NAME: 'บริษัท น้ำตาลพิษณุโลก จำกัด',
   DEPT_NAME: 'ฝ่ายความปลอดภัยฯ และสิ่งแวดล้อม',

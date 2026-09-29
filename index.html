@@ -7,7 +7,7 @@
 <meta name="description" content="ยื่นคำขอรับกากใบอ้อย / ขี้หม้อกรอง / ขี้เถ้า ออนไลน์ และตรวจสถานะคำขอ">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929d">
+<link rel="stylesheet" href="assets/style.css?v=20260929e">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -30,6 +30,7 @@
       <div class="cta">
         <button class="btn primary" data-go="apply">ยื่นคำร้องออนไลน์</button>
         <button class="btn" data-go="check">ตรวจสถานะคำขอ</button>
+        <a class="btn ghost" href="?demo=1" data-demo-try>🧪 ทดลองใช้งาน (ข้อมูลตัวอย่าง)</a>
       </div>
     </div>
     <div class="card">
@@ -80,9 +81,9 @@
 </main>
 <footer id="footer"></footer>
 
-<script src="assets/config.js?v=20260929d"></script>
-<script src="assets/logic.js?v=20260929d"></script>
-<script src="assets/app.js?v=20260929d"></script>
+<script src="assets/config.js?v=20260929e"></script>
+<script src="assets/logic.js?v=20260929e"></script>
+<script src="assets/app.js?v=20260929e"></script>
 <script>
 (function () {
   const { CFG, $, $$, esc, fmtNum, fmtDate, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload, digits, STATUS } = FC;
@@ -91,6 +92,7 @@
   $('[data-tpr]').textContent = CFG.TONS_PER_RAI;
   $('[data-cal]').innerHTML = CFG.CALENDAR.map(([a, d]) => `<tr><td>${esc(a)}</td><td style="white-space:nowrap"><b>${esc(d)}</b></td></tr>`).join('');
   FC.footer();
+  if (FC.DEMO) $('[data-demo-try]').remove();
 
   function show(tab) {
     $$('main > section').forEach(s => (s.hidden = s.id !== tab));
