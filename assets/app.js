@@ -235,15 +235,20 @@
         const mine = picked[d.id] || [];
         return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ส่งแล้ว ${n} ไฟล์</span>` : ''}</div>
           ${docButtons(d.id)}
-          ${mine.length ? `<div class="thumbs">${mine.map((file, i) => `<span class="thumb">${file.type.startsWith('image/') ? `<img src="${thumbUrl(file)}" alt="">` : '<b>PDF</b>'}<button type="button" data-rm="${d.id}:${i}" aria-label="ลบรูป">✕</button></span>`).join('')}</div>` : ''}</li>`;
+          ${mine.length ? `<div class="thumbs">${mine.map((file, i) => `<span class="thumb" data-view="${d.id}" title="ดูตัวอย่าง / แก้ไข">${file.type.startsWith('image/') ? `<img src="${thumbUrl(file)}" alt="">` : '<b>PDF</b>'}<button type="button" data-rm="${d.id}:${i}" aria-label="ลบรูป">✕</button></span>`).join('')}<button type="button" class="btn small" data-view="${d.id}">👁 ดูตัวอย่าง / แก้ไข</button></div>` : ''}</li>`;
       }).join('');
     }
     function calc() { const r = num(f.rai.value); $('[data-tons]', f).textContent = r ? fmtNum(r * CFG.TONS_PER_RAI, 1) : '–'; }
     drawDocs(); calc();
     const pad = signaturePad($('[data-sigbox]', f));
-    $('[data-docs]', f).addEventListener('click', e => {
-      const b = e.target.closest('[data-rm]'); if (!b) return;
-      const [doc, i] = b.dataset.rm.split(':'); picked[doc].splice(+i, 1); drawDocs();
+    const groupsOf = only => docsFor(f.ownership.value || 'own').filter(d => !only || d.id === only)
+      .map(d => ({ docId: d.id, label: d.label, files: (picked[d.id] = picked[d.id] || []) }));
+    const markNow = () => ({ product: f.product.value, name: f.name.value.trim(), sign: pad.isEmpty() ? '' : pad.toDataURL() });
+    $('[data-docs]', f).addEventListener('click', async e => {
+      const b = e.target.closest('[data-rm]');
+      if (b) { const [doc, i] = b.dataset.rm.split(':'); picked[doc].splice(+i, 1); return drawDocs(); }
+      const v2 = e.target.closest('[data-view]');
+      if (v2) { await reviewDocs(groupsOf(v2.dataset.view), { title: 'ตัวอย่างสำเนาเอกสาร', mark: markNow() }); drawDocs(); }
     });
     f.rai.addEventListener('input', calc);
     f.addEventListener('change', e => {
@@ -268,6 +273,13 @@
       if (!staff && pad.isEmpty()) err.push('เซ็นชื่อผู้ขอในกรอบ');
       if (!staff && !fd.agree) err.push('ติ๊กยืนยันข้อมูล');
       if (err.length) return toast(err.join(' • '), true);
+      // ตรวจก่อนส่ง: ใบคำร้อง + เอกสารทุกหน้า (แก้/ลบได้)
+      const preview = Object.assign({}, v, fd, { id: v.id || '(ออกให้เมื่อส่ง)', name: fd.name.trim(), created: v.created || new Date().toISOString(),
+        rai: num(fd.rai), tons: num(fd.rai) * CFG.TONS_PER_RAI, sign: pad.isEmpty() ? '' : pad.toDataURL() });
+      const go = await reviewDocs(groupsOf().filter(gr => gr.files.length || !staff), { title: 'ตรวจก่อนส่ง', mark: markNow(),
+        formHtml: paperHtml(preview), okText: v.id ? 'ยืนยันบันทึก' : 'ยืนยันส่งคำร้อง' });
+      drawDocs();
+      if (!go) return;
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
       try {
         const data = {
@@ -368,51 +380,116 @@
 
   const loadImg = src => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => bad(new Error('ไฟล์รูปเสีย')); im.src = src; });
 
-  // ลายน้ำ (กันนำสำเนาไปใช้ที่อื่น) + ตรา "สำเนาถูกต้อง" พร้อมลายเซ็นผู้ขอ
-  async function watermark(el, mark = {}) {
-    const c = document.createElement('canvas'); c.width = el.width; c.height = el.height;
-    const g = c.getContext('2d'), W = c.width, H = c.height, u = Math.max(W, H) / 60;
-    g.drawImage(el, 0, 0);
+  // ---------- หน้าสำเนาเอกสาร A4 (ใช้ทั้งตัวอย่างก่อนส่ง และ PDF จริง — หน้าตาเดียวกัน) ----------
+  // mark = { product, name, sign (dataURL), preview (true = ยังไม่เซ็นก็แสดงช่องเซ็นว่าง) }
+  const rotations = new WeakMap(); // File -> องศาที่ผู้ใช้หมุน
+  const PAGE_W = 1240, PAGE_H = 1754; // A4 ที่ 150 dpi
+  async function pageCanvas(file, mark = {}) {
+    const img = await readFileForUpload(file); // ย่อเป็น JPEG ≤1800px
+    let el = await loadImg('data:image/jpeg;base64,' + img.data);
+    const deg = rotations.get(file) || 0;
+    if (deg) { // หมุนรูป
+      const t = document.createElement('canvas'), q = deg % 180 !== 0;
+      t.width = q ? el.height : el.width; t.height = q ? el.width : el.height;
+      const tg = t.getContext('2d'); tg.translate(t.width / 2, t.height / 2); tg.rotate(deg * Math.PI / 180); tg.drawImage(el, -el.width / 2, -el.height / 2);
+      el = t;
+    }
+    const c = document.createElement('canvas'); c.width = PAGE_W; c.height = PAGE_H;
+    const g = c.getContext('2d'), M = 80;
+    g.fillStyle = '#fff'; g.fillRect(0, 0, PAGE_W, PAGE_H);
+    // รูปชิดบน เว้นที่ด้านล่างไว้สำหรับช่องเซ็นรับรอง
+    const stampH = 300, maxH = PAGE_H - M * 2 - stampH - 30;
+    const k = Math.min((PAGE_W - M * 2) / el.width, maxH / el.height);
+    const w = el.width * k, h = el.height * k, x = (PAGE_W - w) / 2, y = M;
+    g.drawImage(el, x, y, w, h);
+    g.strokeStyle = '#ccc'; g.lineWidth = 2; g.strokeRect(x, y, w, h);
+    // ลายน้ำเฉียงทับรูป
     const d = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
     const text = `ใช้สำหรับขอรับ${paperName(mark.product) || 'สิ่งปฏิกูล'} ${CFG.ORG_NAME} เท่านั้น · ${d}`;
     g.save();
-    g.translate(W / 2, H / 2); g.rotate(-Math.atan2(H, W));
-    g.font = `700 ${Math.round(u * 1.6)}px Sarabun, sans-serif`; g.textAlign = 'center';
-    g.fillStyle = 'rgba(200, 30, 30, .28)';
-    const diag = Math.hypot(W, H), step = u * 8;
-    for (let y = -diag / 2; y < diag / 2; y += step) g.fillText(text, (y / step % 2) * u * 6, y);
+    g.beginPath(); g.rect(x, y, w, h); g.clip();
+    g.translate(x + w / 2, y + h / 2); g.rotate(-Math.atan2(h, w));
+    g.font = '700 34px Sarabun, sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(200, 30, 30, .30)';
+    const diag = Math.hypot(w, h);
+    for (let yy = -diag / 2, n = 0; yy < diag / 2; yy += 150, n++) g.fillText(text, (n % 2) * 160, yy);
     g.restore();
-    if (mark.sign) { // ตรามุมขวาล่าง
-      const sig = await loadImg(mark.sign);
-      const bw = Math.min(W * .45, u * 22), bh = bw * .52, x = W - bw - u, y = H - bh - u;
-      g.fillStyle = 'rgba(255,255,255,.88)'; g.fillRect(x, y, bw, bh);
-      g.strokeStyle = '#1d3f9a'; g.lineWidth = Math.max(2, u / 6); g.strokeRect(x, y, bw, bh);
+    // ช่องเซ็นรับรองสำเนา (ใต้รูป ชิดขวา)
+    if (mark.sign || mark.preview) {
+      const bw = 560, bh = stampH - 20, bx = PAGE_W - M - bw, by = y + h + 30;
+      g.strokeStyle = '#1d3f9a'; g.lineWidth = 3; g.setLineDash(mark.sign ? [] : [14, 10]); g.strokeRect(bx, by, bw, bh); g.setLineDash([]);
       g.fillStyle = '#1d3f9a'; g.textAlign = 'center';
-      g.font = `700 ${Math.round(bh * .17)}px Sarabun, sans-serif`; g.fillText('สำเนาถูกต้อง', x + bw / 2, y + bh * .22);
-      const sh = bh * .45, sw = Math.min(bw * .9, sh * sig.width / sig.height);
-      g.drawImage(sig, x + (bw - sw) / 2, y + bh * .27, sw, sh);
-      g.font = `${Math.round(bh * .11)}px Sarabun, sans-serif`;
-      g.fillText(mark.name ? `(${mark.name}) ${d}` : d, x + bw / 2, y + bh * .9);
+      g.font = '700 44px Sarabun, sans-serif'; g.fillText('สำเนาถูกต้อง', bx + bw / 2, by + 60);
+      if (mark.sign) {
+        const sig = await loadImg(mark.sign);
+        const sh = 130, sw = Math.min(bw - 60, sh * sig.width / sig.height);
+        g.drawImage(sig, bx + (bw - sw) / 2, by + 80, sw, sh);
+      } else {
+        g.font = '28px Sarabun, sans-serif'; g.fillStyle = '#8a97bd'; g.fillText('(ลายเซ็นผู้ขอจะอยู่ตรงนี้)', bx + bw / 2, by + 150);
+        g.fillStyle = '#1d3f9a';
+      }
+      g.font = '30px Sarabun, sans-serif';
+      g.fillText(mark.name ? `(${mark.name})  ${d}` : `ลงวันที่ ${d}`, bx + bw / 2, by + bh - 25);
     }
-    return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+    return c;
   }
 
-  // รูปหลายรูป → PDF ไฟล์เดียว (A4 แนวตั้งทุกหน้า หน้าละรูป ย่อให้พอดี) พร้อมลายน้ำทุกหน้า
+  // รูปหลายรูป → PDF ไฟล์เดียว (A4 แนวตั้ง หน้าละรูป) หน้าตาเหมือนตัวอย่างที่ผู้ขอเห็น
   async function imagesToPdf(files, name, mark) {
     await loadScript(JSPDF);
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
     for (let i = 0; i < files.length; i++) {
-      const img = await readFileForUpload(files[i]); // ย่อเป็น JPEG ≤1800px
-      const el = await loadImg('data:image/jpeg;base64,' + img.data);
-      const data = await watermark(el, mark);
+      const c = await pageCanvas(files[i], Object.assign({}, mark, { preview: false }));
       if (i) doc.addPage('a4', 'p');
-      const pw = 210, ph = 297, m = 12;
-      const k = Math.min((pw - 2 * m) / el.width, (ph - 2 * m) / el.height);
-      const w = el.width * k, h = el.height * k;
-      doc.addImage(data, 'JPEG', (pw - w) / 2, m, w, h); // ชิดบน เหมือนสำเนาถ่ายเอกสาร
+      doc.addImage(c.toDataURL('image/jpeg', 0.8), 'JPEG', 0, 0, 210, 297);
     }
     return pdfOut(doc, name);
+  }
+
+  // ---------- ตรวจก่อนส่ง: ดูทุกหน้า หมุน / ถ่ายใหม่ / ลบ ----------
+  // groups = [{ docId, label, files: File[] (แก้ในที่) }], opts = { title, mark, formHtml, okText }
+  function reviewDocs(groups, opts = {}) {
+    return new Promise(done => {
+      const d = document.createElement('dialog'); d.className = 'review';
+      document.body.appendChild(d); d.showModal();
+      const close = v => { d.close(); d.remove(); done(v); };
+      async function draw() {
+        const total = groups.reduce((n, gr) => n + gr.files.length, 0);
+        d.innerHTML = `<div class="dhead"><b>${esc(opts.title || 'ตรวจเอกสารก่อนส่ง')}</b><button type="button" class="btn small ghost" data-x aria-label="ปิด">✕</button></div>
+          <div class="dbody">
+          <p class="muted">แตะหน้าเพื่อดูใหญ่ · ↻ หมุน · 📷 ถ่ายใหม่ · 🗑 ลบ — ลายน้ำและช่องเซ็นแสดงตามที่จะส่งจริง</p>
+          ${opts.formHtml ? `<h4>ใบคำร้อง</h4><div class="pv-form"><div class="pv-paper">${opts.formHtml}</div></div>` : ''}
+          ${groups.map((gr, gi) => `<h4>${esc(gr.label)} <small class="muted">${gr.files.length ? gr.files.length + ' หน้า' : 'ยังไม่มี'}</small></h4>
+            <div class="pv-grid">${gr.files.map((f, fi) => `<figure class="pv-page" data-g="${gi}" data-i="${fi}">
+              <div class="pv-img">${f.type.startsWith('image/') ? '<span class="muted">กำลังจัดหน้า…</span>' : '<b>ไฟล์ PDF</b><small>' + esc(f.name) + '</small>'}</div>
+              <figcaption>${f.type.startsWith('image/') ? '<button type="button" class="btn small" data-rot>↻</button>' : ''}
+                <label class="btn small">📷<input type="file" accept="image/*" capture="environment" data-re hidden></label>
+                <button type="button" class="btn small danger" data-del>🗑</button></figcaption></figure>`).join('')}</div>`).join('')}
+          <div class="actions"><button type="button" class="btn ghost" data-x>${opts.okText ? 'กลับไปแก้' : 'ปิด'}</button>
+            ${opts.okText ? `<button type="button" class="btn primary" data-ok>${esc(opts.okText)}${total ? ` (${total} หน้า)` : ''}</button>` : ''}</div></div>`;
+        $$('[data-x]', d).forEach(b => (b.onclick = () => close(false)));
+        const ok = $('[data-ok]', d); if (ok) ok.onclick = () => close(true);
+        $$('.pv-page', d).forEach(fig => {
+          const gr = groups[+fig.dataset.g], i = +fig.dataset.i, f = gr.files[i];
+          const rot = $('[data-rot]', fig);
+          if (rot) rot.onclick = () => { rotations.set(f, ((rotations.get(f) || 0) + 90) % 360); draw(); };
+          $('[data-del]', fig).onclick = () => { gr.files.splice(i, 1); draw(); };
+          $('[data-re]', fig).onchange = e => { if (e.target.files[0]) { gr.files[i] = e.target.files[0]; draw(); } };
+          $('.pv-img', fig).onclick = () => fig.classList.toggle('big');
+        });
+        // จัดหน้าทีละรูป (ไม่ให้ค้าง)
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        for (const fig of $$('.pv-page', d)) {
+          const f = groups[+fig.dataset.g].files[+fig.dataset.i];
+          if (!f || !f.type.startsWith('image/') || !d.open) continue;
+          try {
+            const c = await pageCanvas(f, Object.assign({ preview: true }, opts.mark));
+            $('.pv-img', fig).innerHTML = `<img src="${c.toDataURL('image/jpeg', 0.7)}" alt="ตัวอย่างหน้าเอกสาร">`;
+          } catch (x) { $('.pv-img', fig).innerHTML = `<span class="tone-red">${esc(x.message)}</span>`; }
+        }
+      }
+      draw();
+    });
   }
 
   // ---------- ช่องเซ็นชื่อบนจอ ----------
@@ -498,6 +575,13 @@
   }
 
   // อัปโหลดเอกสารประเภทเดียว: รูปทั้งหมดรวมเป็น PDF 1 ไฟล์, ไฟล์ PDF ส่งตามเดิม
+  // แนบเพิ่มภายหลัง: ดูตัวอย่าง/แก้ก่อน แล้วค่อยส่ง — คืน false ถ้าผู้ใช้ยกเลิก
+  async function reviewAndUpload(id, auth, docId, files, mark) {
+    const gr = [{ docId, label: (DOCS.find(x => x.id === docId) || {}).label || docId, files: [...files] }];
+    if (!(await reviewDocs(gr, { title: 'ตรวจก่อนส่ง', mark, okText: 'ยืนยันส่งเอกสาร' })) || !gr[0].files.length) return false;
+    await uploadDocs(id, auth, docId, gr[0].files, null, mark);
+    return true;
+  }
   async function uploadDocs(id, auth, docType, files, onStep, mark) {
     files = [...files];
     const imgs = files.filter(f => f.type.startsWith('image/')), others = files.filter(f => !f.type.startsWith('image/'));
@@ -529,5 +613,5 @@
 
   window.FC = { CFG, STATUS, STEPS, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
     productName, paperName, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
-    askSignature, docButtons };
+    askSignature, docButtons, reviewAndUpload };
 })();

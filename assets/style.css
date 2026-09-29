@@ -205,3 +205,18 @@ header.top .logo { width: 40px; height: 40px; flex: none; }
 .sigbox.signed .sighint { display: none; }
 .pp-signed { position: relative; display: inline-block; height: 1.2em; vertical-align: bottom; }
 .pp-signed img { position: absolute; left: 50%; bottom: -2mm; transform: translateX(-50%); max-height: 16mm; max-width: 52mm; }
+
+/* ตรวจก่อนส่ง */
+dialog.review { width: min(1000px, calc(100vw - 16px)); }
+dialog.review h4 { margin: 16px 0 8px; }
+.pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.pv-page { margin: 0; background: var(--surface2); border-radius: 10px; padding: 8px; }
+.pv-img { aspect-ratio: 210 / 297; background: #fff; display: grid; place-items: center; text-align: center; border-radius: 4px; overflow: hidden; cursor: zoom-in; color: #333; }
+.pv-img img { width: 100%; height: 100%; object-fit: contain; }
+.pv-img small { display: block; word-break: break-all; padding: 0 6px; }
+.pv-page figcaption { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+.pv-page.big { grid-column: 1 / -1; }
+.pv-page.big .pv-img { max-width: 720px; margin: 0 auto; cursor: zoom-out; }
+.pv-form { background: #fff; color: #000; border-radius: 6px; padding: 16px; overflow-x: auto; }
+.pv-paper { min-width: 640px; }
+.thumb { cursor: pointer; }

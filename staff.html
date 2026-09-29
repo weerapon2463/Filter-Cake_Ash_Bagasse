@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929m">
+<link rel="stylesheet" href="assets/style.css?v=20260929n">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -59,9 +59,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929m"></script>
-<script src="assets/logic.js?v=20260929m"></script>
-<script src="assets/app.js?v=20260929m"></script>
+<script src="assets/config.js?v=20260929n"></script>
+<script src="assets/logic.js?v=20260929n"></script>
+<script src="assets/app.js?v=20260929n"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -253,8 +253,9 @@
     $$('[data-doc]', body).forEach(inp => inp.addEventListener('change', async () => {
       try {
         inp.parentElement.firstChild.textContent = 'กำลังทำ PDF…';
-        await FC.uploadDocs(r.id, { pin: me.pin }, inp.dataset.doc, inp.files, null, { product: r.product });
-        toast('แนบไฟล์แล้ว'); await load(); openDetail(r.id);
+        if (await FC.reviewAndUpload(r.id, { pin: me.pin }, inp.dataset.doc, inp.files, { product: r.product })) {
+          toast('แนบไฟล์แล้ว'); await load(); openDetail(r.id);
+        } else openDetail(r.id);
       } catch (x) { toast(x.message, true); }
     }));
   }
