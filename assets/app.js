@@ -176,7 +176,6 @@
       <fieldset>
         <legend>3. ที่ดินที่จะนำไปใช้ประโยชน์ (ปรับปรุงพื้นที่ปลูกอ้อย)</legend>
         <div class="grid2">
-          <label>โฉนดที่ดินเลขที่ *<input name="deedNo" value="${esc(v.deedNo)}" required></label>
           <label>จำนวนไร่ *<input name="rai" type="number" min="0.25" step="0.25" value="${esc(v.rai)}" inputmode="decimal" required></label>
           <label class="span2">ที่ดินตั้งอยู่ (หมู่ ตำบล อำเภอ จังหวัด) *<input name="landLocation" value="${esc(v.landLocation)}" required></label>
           <label>ระยะทางจากโรงงาน (กม.)<input name="distanceKm" type="number" min="0" step="0.1" value="${esc(v.distanceKm)}" inputmode="decimal"></label>
@@ -236,7 +235,6 @@
       if (!validThaiId(fd.citizenId)) err.push('เลขบัตรประชาชนไม่ถูกต้อง');
       if (!fd.zone) err.push('เลือกเขต');
       if (!fd.address) err.push('กรอกที่อยู่');
-      if (!fd.deedNo) err.push('กรอกเลขที่โฉนด');
       if (!(num(fd.rai) > 0)) err.push('กรอกจำนวนไร่');
       if (!fd.landLocation) err.push('กรอกที่ตั้งที่ดิน');
       if (!staff && !fd.agree) err.push('ติ๊กยืนยันข้อมูล');
@@ -245,7 +243,7 @@
       try {
         const data = {
           id: v.id, product: fd.product, name: fd.name.trim(), phone: digits(fd.phone), citizenId: digits(fd.citizenId),
-          quotaNo: fd.quotaNo, zone: fd.zone, address: fd.address, deedNo: fd.deedNo, rai: num(fd.rai),
+          quotaNo: fd.quotaNo, zone: fd.zone, address: fd.address, rai: num(fd.rai),
           landLocation: fd.landLocation, distanceKm: fd.distanceKm, ownership: fd.ownership, transport: fd.transport,
           truck: fd.truck, note: fd.note, website: fd.website,
         };

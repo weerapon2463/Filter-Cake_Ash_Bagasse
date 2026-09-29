@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260929a">
+<link rel="stylesheet" href="assets/style.css?v=20260929b">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -31,7 +31,7 @@
   <section id="app" hidden>
     <div class="stats" data-stats></div>
     <div class="toolbar">
-      <label class="grow">ค้นหา<input id="q" placeholder="ชื่อ / เลขที่คำขอ / เบอร์ / โฉนด / ชุดยื่น"></label>
+      <label class="grow">ค้นหา<input id="q" placeholder="ชื่อ / เลขที่คำขอ / เบอร์ / ชุดยื่น"></label>
       <label data-zone-filter>เขต<select id="fZone"><option value="">ทุกเขต</option></select></label>
       <label>ชนิด<select id="fProduct"><option value="">ทุกชนิด</option></select></label>
       <button class="btn" id="reload" title="โหลดใหม่">↻</button>
@@ -55,9 +55,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260929a"></script>
-<script src="assets/logic.js?v=20260929a"></script>
-<script src="assets/app.js?v=20260929a"></script>
+<script src="assets/config.js?v=20260929b"></script>
+<script src="assets/logic.js?v=20260929b"></script>
+<script src="assets/app.js?v=20260929b"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -104,7 +104,7 @@
     return rows.filter(r =>
       (!filter.status || r.status === filter.status) && (!filter.zone || String(r.zone) === filter.zone) &&
       (!filter.product || r.product === filter.product) &&
-      (!filter.q || [r.id, r.name, r.phone, r.deedNo, r.batchNo, r.citizenId].join(' ').toLowerCase().includes(filter.q))
+      (!filter.q || [r.id, r.name, r.phone, r.landLocation, r.batchNo, r.citizenId].join(' ').toLowerCase().includes(filter.q))
     ).sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
   }
   function render() {
@@ -209,7 +209,7 @@
         <dt>บัตรประชาชน</dt><dd>${esc(r.citizenId)}</dd>
         <dt>โควตา / เขต</dt><dd>${esc(r.quotaNo || '–')} · เขต ${esc(r.zone)}</dd>
         <dt>ที่อยู่</dt><dd>${esc(r.address)}</dd>
-        <dt>โฉนด</dt><dd>${esc(r.deedNo)} · ${esc(r.landLocation)}</dd>
+        <dt>ที่ดินตั้งอยู่</dt><dd>${esc(r.landLocation)}</dd>
         <dt>สิทธิ์ในที่ดิน</dt><dd>${esc((OWNERSHIP.find(o => o.id === r.ownership) || {}).label || '–')}</dd>
         <dt>จำนวน</dt><dd><b>${fmtNum(r.rai, 2)} ไร่ · ${fmtNum(r.tons, 1)} ตัน</b> · ระยะทาง ${esc(r.distanceKm || '–')} กม.</dd>
         <dt>ขนส่ง</dt><dd>${esc(r.transport)} ${esc(r.truck || '')}</dd>

@@ -3,7 +3,7 @@
 var FC_FIELDS = [
   ['id', 'เลขที่คำขอ'], ['created', 'วันที่ยื่น'], ['channel', 'ช่องทาง'], ['season', 'ปีการผลิต'],
   ['product', 'ชนิด'], ['name', 'ชื่อ-นามสกุล'], ['phone', 'เบอร์โทร'], ['citizenId', 'เลขบัตรประชาชน'],
-  ['quotaNo', 'เลขโควตา'], ['zone', 'เขต'], ['address', 'ที่อยู่'], ['deedNo', 'โฉนดเลขที่'],
+  ['quotaNo', 'เลขโควตา'], ['zone', 'เขต'], ['address', 'ที่อยู่'],
   ['landLocation', 'ที่ดินตั้งอยู่'], ['rai', 'จำนวนไร่'], ['tons', 'จำนวนขอ(ตัน)'], ['distanceKm', 'ระยะทาง(กม.)'],
   ['ownership', 'สิทธิ์ในที่ดิน'], ['transport', 'รถขนส่ง'], ['truck', 'ประเภทรถ/ทะเบียน'], ['note', 'หมายเหตุผู้ขอ'],
   ['status', 'สถานะ'], ['fixReason', 'สิ่งที่ต้องแก้ไข'], ['batchNo', 'ชุดยื่นกรมโรงงาน'], ['filedDate', 'วันที่ยื่นกรมโรงงาน'],
@@ -15,7 +15,7 @@ var FC_JSON_FIELDS = ['docs', 'checks', 'history'];
 
 var FC_LOGIC_FACTORY = function (env) {
   var TPR = env.tonsPerRai || 20, BATCH_MAX = env.batchMax || 30, SEASON = env.season || '2569/70';
-  var EDITABLE = ['product', 'name', 'phone', 'citizenId', 'quotaNo', 'zone', 'address', 'deedNo', 'landLocation', 'rai',
+  var EDITABLE = ['product', 'name', 'phone', 'citizenId', 'quotaNo', 'zone', 'address', 'landLocation', 'rai',
     'distanceKm', 'ownership', 'transport', 'truck', 'note'];
   var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'filed', 'approved', 'done', 'rejected', 'cancelled'];
   var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
@@ -62,7 +62,7 @@ var FC_LOGIC_FACTORY = function (env) {
     if (!/^0\d{8,9}$/.test(o.phone)) return 'เบอร์โทรไม่ถูกต้อง';
     if (o.citizenId.length !== 13) return 'เลขบัตรประชาชนไม่ถูกต้อง';
     if (!o.zone) return 'เลือกเขต';
-    if (!o.deedNo) return 'กรอกเลขที่โฉนด';
+    if (!o.landLocation) return 'กรอกที่ตั้งที่ดิน';
     if (!(o.rai > 0) || o.rai > 5000) return 'จำนวนไร่ไม่ถูกต้อง';
     return '';
   }
@@ -70,7 +70,7 @@ var FC_LOGIC_FACTORY = function (env) {
     for (var i = 0; i < db.rows.length; i++) {
       var r = db.rows[i];
       if (r.id !== exceptId && r.season === SEASON && r.status !== 'cancelled' && r.citizenId === o.citizenId &&
-        r.product === o.product && String(r.deedNo).replace(/\s/g, '') === String(o.deedNo).replace(/\s/g, '')) return r;
+        r.product === o.product && String(r.landLocation).replace(/s/g, "") === String(o.landLocation).replace(/s/g, "")) return r;
     }
     return null;
   }
