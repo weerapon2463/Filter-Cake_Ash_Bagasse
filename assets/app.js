@@ -379,7 +379,7 @@
     g.translate(W / 2, H / 2); g.rotate(-Math.atan2(H, W));
     g.font = `700 ${Math.round(u * 1.6)}px Sarabun, sans-serif`; g.textAlign = 'center';
     g.fillStyle = 'rgba(200, 30, 30, .28)';
-    const diag = Math.hypot(W, H), step = u * 7;
+    const diag = Math.hypot(W, H), step = u * 8;
     for (let y = -diag / 2; y < diag / 2; y += step) g.fillText(text, (y / step % 2) * u * 6, y);
     g.restore();
     if (mark.sign) { // ตรามุมขวาล่าง
@@ -397,7 +397,7 @@
     return c.toDataURL('image/jpeg', 0.8).split(',')[1];
   }
 
-  // รูปหลายรูป → PDF ไฟล์เดียว (A4 หน้าละรูป ย่อให้พอดีหน้า) พร้อมลายน้ำทุกหน้า
+  // รูปหลายรูป → PDF ไฟล์เดียว (A4 แนวตั้งทุกหน้า หน้าละรูป ย่อให้พอดี) พร้อมลายน้ำทุกหน้า
   async function imagesToPdf(files, name, mark) {
     await loadScript(JSPDF);
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
@@ -406,12 +406,11 @@
       const img = await readFileForUpload(files[i]); // ย่อเป็น JPEG ≤1800px
       const el = await loadImg('data:image/jpeg;base64,' + img.data);
       const data = await watermark(el, mark);
-      const landscape = el.width > el.height;
-      if (i) doc.addPage('a4', landscape ? 'l' : 'p'); else if (landscape) { doc.deletePage(1); doc.addPage('a4', 'l'); }
-      const pw = landscape ? 297 : 210, ph = landscape ? 210 : 297, m = 8;
+      if (i) doc.addPage('a4', 'p');
+      const pw = 210, ph = 297, m = 12;
       const k = Math.min((pw - 2 * m) / el.width, (ph - 2 * m) / el.height);
       const w = el.width * k, h = el.height * k;
-      doc.addImage(data, 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+      doc.addImage(data, 'JPEG', (pw - w) / 2, m, w, h); // ชิดบน เหมือนสำเนาถ่ายเอกสาร
     }
     return pdfOut(doc, name);
   }
@@ -491,8 +490,9 @@
       await imagesReady(box);
       const c = await window.html2canvas(box, { scale: 2, backgroundColor: '#fff' });
       const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
-      const h = Math.min(297, c.height * 210 / c.width);
-      doc.addImage(c.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, 210, h);
+      const k = Math.min(210 / c.width, 297 / c.height); // A4 หน้าเดียว — ยาวเกินก็ย่อ ไม่ตัดท้าย
+      const w = c.width * k, h = c.height * k;
+      doc.addImage(c.toDataURL('image/jpeg', 0.85), 'JPEG', (210 - w) / 2, 0, w, h);
       return pdfOut(doc, 'ใบคำร้อง.pdf');
     } finally { box.remove(); }
   }
