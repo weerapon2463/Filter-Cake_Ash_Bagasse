@@ -261,3 +261,7 @@ h4 .btn.small { margin-left: 6px; vertical-align: middle; }
 .rep tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
 .logtbl td { font-size: .9rem; vertical-align: top; }
 .setform textarea { font-family: inherit; }
+/* แบบฟอร์มเปล่าให้ดาวน์โหลด (หนังสือยินยอมให้ใช้ที่ดิน) */
+.tpl { margin-top: 6px; font-size: .9rem; color: var(--muted, #666); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tpl a.btn { text-decoration: none; }
+.radios input[type=checkbox] { width: auto; }

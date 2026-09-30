@@ -7,3 +7,5 @@
 .clasprc.json
 Thumbs.db
 desktop.ini
+!assets/forms/*.pdf
+DOC/

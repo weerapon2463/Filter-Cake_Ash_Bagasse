@@ -28,6 +28,7 @@ var PRODUCT_DIRS = { filtercake: '01 ขี้หม้อกรอง', leaf: '
 var DOC_NAMES = {
   form: '00 ใบคำร้อง', idcard: '01 สำเนาบัตรประชาชน', house: '02 สำเนาทะเบียนบ้าน', farmer: '03 สำเนาทะเบียนเกษตรกร',
   deed: '04 สำเนาโฉนดที่ดิน', lease: '05 สัญญาเช่าที่ดิน', consent: '05 หนังสือยินยอมให้ใช้ที่ดิน', owner: '06 เอกสารเจ้าของโฉนด',
+  sign: '99 ลายเซ็นผู้ขอ',
 };
 
 function setup() {
@@ -333,12 +334,15 @@ function logic_() {
   });
 }
 
-// กันเดา PIN: ผิดเกิน 20 ครั้งใน 10 นาที → ปิดการเข้าระบบ 10 นาที
+// กันเดา PIN: ล็อกรายเครื่อง — เครื่องเดียวผิด 5 ครั้งใน 10 นาที → เครื่องนั้นรอ 10 นาที (คนอื่นใช้ได้ตามปกติ)
+// เพดานรวมทั้งระบบ 100 ครั้ง/10 นาที กันการเดาจากหลายเครื่องพร้อมกัน
 function pinGuard_(p, res) {
   if (!p.pin) return null;
-  var c = CacheService.getScriptCache(), n = Number(c.get('pinfail') || 0);
-  if (n >= 20) return { ok: false, error: 'ใส่ PIN ผิดหลายครั้ง กรุณารอ 10 นาที' };
-  if (res && !res.ok && /PIN|เข้าสู่ระบบ/.test(res.error)) c.put('pinfail', String(n + 1), 600);
+  var c = CacheService.getScriptCache(), dev = String(p.dev || 'nodev').replace(/[^\w-]/g, '').slice(0, 40) || 'nodev';
+  var kDev = 'pinfail:' + dev, nDev = Number(c.get(kDev) || 0), nAll = Number(c.get('pinfail') || 0);
+  if (nDev >= 5) return { ok: false, error: 'ใส่ PIN ผิด 5 ครั้ง เครื่องนี้ต้องรอ 10 นาที' };
+  if (nAll >= 100) return { ok: false, error: 'มีการใส่ PIN ผิดจำนวนมาก ระบบปิดการเข้าสู่ระบบชั่วคราว 10 นาที' };
+  if (res && !res.ok && /PIN|เข้าสู่ระบบ/.test(res.error)) { c.put(kDev, String(nDev + 1), 600); c.put('pinfail', String(nAll + 1), 600); }
   return null;
 }
 

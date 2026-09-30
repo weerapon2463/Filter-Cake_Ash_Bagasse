@@ -25,7 +25,9 @@
     { id: 'farmer', label: 'สำเนาบัตรประจำตัวชาวไร่อ้อย / ทะเบียนเกษตรกร', paper: 'สำเนาทะเบียนเกษตรกร/ชาวไร่อ้อย', when: 'all' },
     { id: 'deed', label: 'สำเนาโฉนดที่ดิน (ทั้ง 2 หน้า)', paper: 'สำเนาโฉนดที่ดินพื้นที่ที่ต้องการนำสิ่งปฏิกูลไปใช้ประโยชน์', when: 'all' },
     { id: 'lease', label: 'สำเนาสัญญาเช่าที่ดิน', when: 'lease' },
-    { id: 'consent', label: 'หนังสือยินยอมให้ใช้ประโยชน์ในที่ดิน', when: 'consent' },
+    { id: 'consent', label: 'หนังสือยินยอมให้ใช้ประโยชน์ในที่ดิน', when: 'consent',
+      templates: [{ label: 'เจ้าของคนเดียว', href: 'assets/forms/consent-single.pdf', file: 'หนังสือยินยอมให้ใช้ที่ดิน (เจ้าของคนเดียว).pdf' },
+                  { label: 'ถือกรรมสิทธิ์ร่วม', href: 'assets/forms/consent-joint.pdf', file: 'หนังสือยินยอมให้ใช้ที่ดิน (กรรมสิทธิ์ร่วม).pdf' }] },
     { id: 'owner', label: 'สำเนาบัตรประชาชน + ทะเบียนบ้าน ของเจ้าของโฉนด', when: 'lease consent' },
   ];
   const STAFF_CHECKS = [
@@ -35,9 +37,28 @@
     { id: 'signed', label: 'ใบคำร้องมีลายเซ็นผู้ขอ' },
     { id: 'measures', label: 'ผู้ขอเซ็นรับเอกสารมาตรการป้องกันผลกระทบฯ แล้ว' },
   ];
-  function docsFor(ownership) {
-    return DOCS.filter(d => d.when === 'all' || d.when.split(' ').includes(ownership));
+  // แบบฟอร์มเปล่าให้ดาวน์โหลดไปพิมพ์/กรอก (เช่น หนังสือยินยอมให้ใช้ที่ดิน)
+  function templateLinks(d) {
+    if (!d || !d.templates) return '';
+    return `<div class="tpl">⬇ ดาวน์โหลดแบบฟอร์มเปล่า: ${d.templates.map(t =>
+      `<a class="btn small" href="${t.href}" download="${esc(t.file)}" target="_blank" rel="noopener">${esc(t.label)}</a>`).join(' ')}</div>`;
   }
+  // สิทธิ์ในที่ดินเลือกได้หลายแบบ (เช่น มีที่ตัวเอง + เช่า + ยืม) เก็บเป็น "own lease consent"
+  const ownList = v => { const a = String(v || '').split(/[\s,]+/).filter(x => OWNERSHIP.some(o => o.id === x)); return a.length ? a : ['own']; };
+  const ownLabel = v => ownList(v).map(id => (OWNERSHIP.find(o => o.id === id) || {}).label).join(' · ');
+  function docsFor(ownership) {
+    const own = ownList(ownership);
+    return DOCS.filter(d => d.when === 'all' || d.when.split(' ').some(w => own.includes(w)));
+  }
+  // อ่านฟอร์มเป็น object — ช่องที่ติ๊กได้หลายข้อรวมเป็นข้อความเดียว, ประเภทรถ "อื่นๆ" ใช้ค่าที่พิมพ์
+  function formValues(f) {
+    const fd = Object.fromEntries(new FormData(f));
+    fd.ownership = new FormData(f).getAll('ownership').join(' ');
+    if (fd.truckType === TRUCK_OTHER) fd.truckType = String(fd.truckOther || '').trim();
+    delete fd.truckOther;
+    return fd;
+  }
+  const TRUCK_OTHER = '__other';
 
   // ---------- ตัวช่วย ----------
   const $ = (s, el = document) => el.querySelector(s);
@@ -106,7 +127,16 @@
   const DEMO = !CFG.API_URL || /[?&]demo=1/.test(location.search);
   const ENDPOINT = DEMO ? CFG.DEMO_API_URL : CFG.API_URL;
   const LIVE = !!ENDPOINT; // มี backend จริง (รวมเดโมกลาง) — ไม่ใช่เก็บในเบราว์เซอร์
+  // รหัสเครื่อง (สุ่มครั้งเดียว) — ใส่ PIN ผิดซ้ำ ๆ ล็อกเฉพาะเครื่องนั้น ไม่ล็อกทั้งระบบ
+  function deviceId() {
+    try {
+      let d = localStorage.getItem('fc-device');
+      if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(9)), b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('fc-device', d); }
+      return d;
+    } catch (x) { return ''; }
+  }
   async function api(action, payload = {}) {
+    if (payload.pin) payload = Object.assign({ dev: deviceId() }, payload);
     if (!LIVE) return Mock.call(action, JSON.parse(JSON.stringify(payload)));
     const DOWN = 'ระบบหลังบ้านยังไม่พร้อมใช้งาน (ผู้ดูแลยังไม่ได้เปิดสิทธิ์ Google) — ลองใหม่ภายหลัง หรือใช้โหมดทดลอง';
     let r, j;
@@ -236,18 +266,19 @@
       <div class="p-line"><div class="p-f w100 p-text">จาก <u>${esc(CFG.ORG_NAME)}</u> ทะเบียนโรงงานเลขที่ <u>${esc(CFG.FACTORY_REG)}</u></div></div>
       <div class="p-line">
         <label class="p-f w30">ที่ดินมีเนื้อที่ (ไร่)<input name="rai" type="number" min="0.25" step="0.25" value="${esc(v.rai)}" inputmode="decimal" required></label>
-        <label class="p-f w70">ตั้งอยู่<input name="landLocation" value="${esc(v.landLocation)}" required placeholder="หมู่ ตำบล อำเภอ จังหวัด"></label>
       </div>
       <div class="p-line"><div class="p-f w100 p-text">เพื่อนำไปใช้ <u>${esc(CFG.PURPOSE)}</u> จริง</div></div>
       <div class="p-line">
-        <label class="p-f w50">ประเภทรถ<select name="truckType">${opt(CFG.TRUCK_TYPES, v.truckType || '')}</select></label>
+        <label class="p-f w50">ประเภทรถ<select name="truckType">${opt(CFG.TRUCK_TYPES, CFG.TRUCK_TYPES.includes(v.truckType || '') ? (v.truckType || '') : TRUCK_OTHER)}<option value="${TRUCK_OTHER}"${v.truckType && !CFG.TRUCK_TYPES.includes(v.truckType) ? ' selected' : ''}>อื่นๆ (ระบุเอง)</option></select>
+          <input name="truckOther" value="${esc(v.truckType && !CFG.TRUCK_TYPES.includes(v.truckType) ? v.truckType : '')}" placeholder="พิมพ์ประเภทรถ" ${v.truckType && !CFG.TRUCK_TYPES.includes(v.truckType) ? '' : 'hidden'}></label>
         <label class="p-f w50">ทะเบียน<input name="plate" value="${esc(v.plate)}" placeholder="เช่น กพ-1234 พิษณุโลก"></label>
       </div>
 
       <div class="p-sec">โดยมีเอกสารที่ใช้เป็นหลักฐานประกอบใบคำร้อง ดังนี้ <small class="muted">(ถ่ายรูปเอกสารตัวจริง — ระบบใส่ลายน้ำและลายเซ็นรับรองสำเนาให้ทุกแผ่น)</small></div>
       <div class="radios">
         <span class="lbl">สิทธิ์ในที่ดิน</span>
-        ${OWNERSHIP.map(o => `<label><input type="radio" name="ownership" value="${o.id}" ${(v.ownership || 'own') === o.id ? 'checked' : ''}> ${esc(o.label)}</label>`).join('')}
+        <small class="muted">(เลือกได้มากกว่า 1 ข้อ ถ้ามีที่ดินหลายแบบ)</small>
+        ${OWNERSHIP.map(o => `<label><input type="checkbox" name="ownership" value="${o.id}" ${ownList(v.ownership).includes(o.id) ? 'checked' : ''}> ${esc(o.label)}</label>`).join('')}
       </div>
       <ol class="p-docs" data-docs></ol>
       ${staff ? '' : '<p class="hint">ถ้ายังถ่ายไม่ครบ ยื่นคำร้องก่อนได้ แล้วเข้ามาถ่ายเพิ่มที่เมนู “ตรวจสถานะ”</p>'}
@@ -280,12 +311,17 @@
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(DKEY)); } catch {}
       if (saved) {
-        Object.entries(saved).forEach(([k, val]) => { if (f.elements[k] && !NOSAVE.includes(k)) f.elements[k].value = val; });
+        Object.entries(saved).forEach(([k, val]) => {
+          if (NOSAVE.includes(k) || !f.elements[k]) return;
+          if (k === 'ownership') { const on = ownList(val); $$('[name=ownership]', f).forEach(c => (c.checked = on.includes(c.value))); return; }
+          if (k === 'truckType' && val && !CFG.TRUCK_TYPES.includes(val)) { f.truckType.value = TRUCK_OTHER; f.truckOther.value = val; f.truckOther.hidden = false; return; }
+          f.elements[k].value = val;
+        });
         $('[data-draftnote]', f).hidden = false;
         $('[data-ptitle]', f).textContent = paperName(f.product.value) || 'กากตะกอนหม้อกรอง';
       }
       const saveText = () => {
-        const fd = Object.fromEntries(new FormData(f)); NOSAVE.forEach(k => delete fd[k]);
+        const fd = formValues(f); NOSAVE.forEach(k => delete fd[k]);
         try { localStorage.setItem(DKEY, JSON.stringify(fd)); } catch {}
       };
       f.addEventListener('input', saveText); f.addEventListener('change', saveText);
@@ -317,12 +353,12 @@
     };
     function drawDocs() {
       saveDocs();
-      const own = f.ownership.value || 'own';
+      const own = formValues(f).ownership;
       const have = v.docs || {};
       $('[data-docs]', f).innerHTML = docsFor(own).map(d => {
         const n = (have[d.id] || []).length;
         const mine = picked[d.id] || [];
-        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ส่งแล้ว ${n} ไฟล์</span>` : ''}</div>
+        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ส่งแล้ว ${n} ไฟล์</span>` : ''}${templateLinks(d)}</div>
           ${docButtons(d.id)}
           ${mine.length ? `<div class="thumbs">${mine.map((file, i) => `<span class="thumb" data-view="${d.id}" title="ดูตัวอย่าง / แก้ไข">${file.type.startsWith('image/') ? `<img src="${thumbUrl(file)}" alt="">` : '<b>PDF</b>'}<button type="button" data-rm="${d.id}:${i}" aria-label="ลบรูป">✕</button></span>`).join('')}<button type="button" class="btn small" data-view="${d.id}">👁 ดูตัวอย่าง / แก้ไข</button></div>` : ''}</li>`;
       }).join('');
@@ -330,7 +366,7 @@
     function calc() { const r = num(f.rai.value); $('[data-tons]', f).textContent = r ? fmtNum(r * CFG.TONS_PER_RAI, 1) : '–'; }
     drawDocs(); calc();
     const pad = signaturePad($('[data-sigbox]', f));
-    const groupsOf = only => docsFor(f.ownership.value || 'own').filter(d => !only || d.id === only)
+    const groupsOf = only => docsFor(formValues(f).ownership).filter(d => !only || d.id === only)
       .map(d => ({ docId: d.id, label: d.label, files: (picked[d.id] = picked[d.id] || []) }));
     const markNow = () => ({ product: f.product.value, name: f.name.value.trim(), sign: pad.isEmpty() ? '' : pad.toDataURL() });
     $('[data-docs]', f).addEventListener('click', async e => {
@@ -341,7 +377,11 @@
     });
     f.rai.addEventListener('input', calc);
     f.addEventListener('change', e => {
-      if (e.target.name === 'ownership') drawDocs();
+      if (e.target.name === 'ownership') {
+        if (!$$('[name=ownership]:checked', f).length) e.target.checked = true; // ต้องเลือกอย่างน้อย 1 ข้อ
+        drawDocs();
+      }
+      if (e.target.name === 'truckType') { f.truckOther.hidden = e.target.value !== TRUCK_OTHER; if (!f.truckOther.hidden) f.truckOther.focus(); }
       if (e.target.name === 'product') $('[data-ptitle]', f).textContent = paperName(f.product.value) || 'กากตะกอนหม้อกรอง';
       if (e.target.dataset.doc) {
         const doc = e.target.dataset.doc, files = [...e.target.files]; e.target.value = '';
@@ -351,7 +391,7 @@
     if (opts.onCancel) $('[data-cancel]', f).onclick = opts.onCancel;
     f.addEventListener('submit', async e => {
       e.preventDefault();
-      const fd = Object.fromEntries(new FormData(f));
+      const fd = formValues(f);
       if (zoneLocked) fd.zone = opts.user.zone;
       const err = [];
       if (!fd.product) err.push('เลือกชนิดสิ่งปฏิกูล');
@@ -361,7 +401,6 @@
       if (!fd.zone) err.push('เลือกเขต');
       if (!fd.address) err.push('กรอกที่อยู่');
       if (!(num(fd.rai) > 0)) err.push('กรอกจำนวนไร่');
-      if (!fd.landLocation) err.push('กรอกที่ตั้งที่ดิน');
       if (!staff && pad.isEmpty()) err.push('เซ็นชื่อผู้ขอในกรอบ');
       if (!staff && !fd.agree) err.push('ติ๊กยืนยันข้อมูล');
       if (err.length) return toast(err.join(' • '), true);
@@ -392,8 +431,13 @@
           catch (x) { failed++; console.warn(x); }
         }
         btn.textContent = 'กำลังสร้างใบคำร้อง PDF…';
+        if (sign) await saveSign(res.id, auth, sign);
         const full = Object.assign({}, v, data, { id: res.id, created: v.created || new Date().toISOString(), tons: data.rai * CFG.TONS_PER_RAI, sign });
-        if (!(await uploadFormPdf(full, auth))) failed++;
+        if (v.id && !sign) { // เจ้าหน้าที่แก้ข้อมูล: ใบคำร้องใหม่ใช้ลายเซ็นผู้ขอที่เก็บไว้
+          const st = await regenFormPdf(full, auth);
+          if (st === 'nosign') toast('บันทึกแล้ว — คำขอนี้ยื่นก่อนระบบเก็บลายเซ็น จึงไม่สร้างใบคำร้องใหม่ (ใบเดิมที่มีลายเซ็นยังอยู่)', true);
+          if (st === 'fail') failed++;
+        } else if (!(await uploadFormPdf(full, auth))) failed++;
         if (failed) toast(`อัปโหลดไม่สำเร็จ ${failed} รายการ — แนบใหม่ได้ภายหลัง`, true);
         if (draftOn) { docsRestored = false; try { localStorage.removeItem(DKEY); } catch {} await Draft.del(DKEY); }
         opts.onDone && opts.onDone(res.id, data, sign);
@@ -565,7 +609,7 @@
             <div class="pv-grid">${gr.files.map((f, fi) => `<figure class="pv-page" data-g="${gi}" data-i="${fi}">
               <div class="pv-img">${f.type.startsWith('image/') ? '<span class="muted">กำลังจัดหน้า…</span>' : '<b>ไฟล์ PDF</b><small>' + esc(f.name) + '</small>'}</div>
               <figcaption>${f.type.startsWith('image/') ? '<button type="button" class="btn small" data-sign title="เซ็นใหม่">✍</button><button type="button" class="btn small" data-rot title="หมุน">↻</button>' : ''}
-                <label class="btn small">📷<input type="file" accept="image/*" capture="environment" data-re hidden></label>
+                <button type="button" class="btn small" data-recam title="ถ่ายใหม่">📷</button><input type="file" accept="image/*" capture="environment" data-re hidden>
                 <button type="button" class="btn small danger" data-del>🗑</button></figcaption></figure>`).join('')}</div>`).join('')}
           <div class="actions"><button type="button" class="btn ghost" data-x>${opts.okText ? 'กลับไปแก้' : 'ปิด'}</button>
             ${opts.okText ? `<button type="button" class="btn primary" data-ok>${esc(opts.okText)}${total ? ` (${total} หน้า)` : ''}</button>` : ''}</div></div>`;
@@ -586,10 +630,17 @@
           const sg = $('[data-sign]', fig);
           if (sg) sg.onclick = async () => { const got = await signPage(f, opts.mark, { docId: gr.docId }); if (got) gr.files[i] = got; draw(); };
           $('[data-del]', fig).onclick = () => { gr.files.splice(i, 1); draw(); };
-          $('[data-re]', fig).onchange = async e => {
-            const nf = e.target.files[0]; if (!nf) return;
+          const replace = async nf => {
+            if (!nf) return;
             const got = opts.signRequired ? await signPage(nf, opts.mark, { required: true, docId: gr.docId }) : nf;
             if (got) gr.files[i] = got; draw();
+          };
+          $('[data-re]', fig).onchange = e => replace(e.target.files[0]);
+          // ถ่ายใหม่ด้วยกล้องในเว็บ (กรอบเล็ง + ลายน้ำ) เหมือนตอนถ่ายครั้งแรก — เปิดไม่ได้ค่อยใช้กล้องของเครื่อง
+          $('[data-recam]', fig).onclick = async () => {
+            const got = navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? await openCamera(gr.docId) : 'fallback';
+            if (got === 'fallback') return $('[data-re]', fig).click();
+            replace(got);
           };
           $('.pv-img', fig).onclick = () => fig.classList.toggle('big');
         });
@@ -911,6 +962,24 @@
       await api('upload', Object.assign({ id, docType }, auth, await job()));
     }
   }
+  // ลายเซ็นผู้ขอที่เก็บไว้กับคำขอ (ไฟล์ sign) — ใช้สร้างใบคำร้อง PDF ใหม่โดยลายเซ็นไม่หาย
+  async function storedSign(id, auth) {
+    try {
+      const f = await api('file', Object.assign({ id, docType: 'sign', index: 0 }, auth));
+      return `data:${f.mime || 'image/png'};base64,${f.data}`;
+    } catch (x) { return ''; }
+  }
+  async function saveSign(id, auth, dataUrl) {
+    if (!dataUrl) return;
+    try { await api('upload', Object.assign({ id, docType: 'sign', name: 'sign.png', mime: 'image/png', data: dataUrl.split(',')[1] }, auth)); }
+    catch (x) { console.warn(x); }
+  }
+  // สร้างใบคำร้องใหม่หลังแก้ข้อมูล: ใช้ลายเซ็นเดิม ถ้าไม่มี (คำขอเก่า) และมีใบเดิมอยู่แล้ว จะไม่ทับ — กันลายเซ็นหาย
+  async function regenFormPdf(r, auth) {
+    const sign = r.sign || await storedSign(r.id, auth);
+    if (!sign && ((r.docs || {}).form || []).length) return 'nosign';
+    return (await uploadFormPdf(Object.assign({}, r, { sign }), auth)) ? 'ok' : 'fail';
+  }
   async function uploadFormPdf(r, auth) {
     try { await api('upload', Object.assign({ id: r.id, docType: 'form' }, auth, await formPdf(r))); return true; }
     catch (x) { console.warn(x); return false; }
@@ -937,7 +1006,7 @@
     const cols = FC_FIELDS.filter(([k]) => !['docs', 'checks', 'history'].includes(k));
     const text = cols.map(([k], i) => ['phone', 'citizenId'].includes(k) ? i : -1).filter(i => i >= 0);
     downloadCsv([cols.map(c => c[1])].concat(list.map(r => cols.map(([k]) =>
-      k === 'product' ? productName(r[k]) : k === 'status' ? (STATUS[r[k]] || {}).short : r[k]))),
+      k === 'product' ? productName(r[k]) : k === 'status' ? (STATUS[r[k]] || {}).short : k === 'ownership' ? ownLabel(r[k]) : r[k]))),
     filename || `คำขอสิ่งปฏิกูล-${new Date().toISOString().slice(0, 10)}.csv`, text);
   }
 
@@ -960,5 +1029,5 @@
 
   window.FC = { CFG, STATUS, STEPS, ROLE_LABEL, configReady, setSettings, downloadCsv, exportRequests, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
     productName, paperName, histText, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
-    askSignature, docButtons, reviewAndUpload, showPdf, fileButtons, bindOpen };
+    askSignature, docButtons, reviewAndUpload, showPdf, fileButtons, bindOpen, templateLinks, regenFormPdf, ownList, ownLabel };
 })();

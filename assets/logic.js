@@ -21,7 +21,7 @@ var FC_LOGIC_FACTORY = function (env) {
   var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'cancelled'];
   var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
   var UPLOAD_OPEN = ['submitted', 'zone_ok', 'fix'];
-  var DOC_TYPES = ['form', 'idcard', 'house', 'farmer', 'deed', 'lease', 'consent', 'owner'];
+  var DOC_TYPES = ['form', 'idcard', 'house', 'farmer', 'deed', 'lease', 'consent', 'owner', 'sign']; // sign = ลายเซ็นผู้ขอ (ใช้สร้างใบคำร้องใหม่)
 
   function digits(v) { return String(v == null ? '' : v).replace(/\D/g, ''); }
   function str(v, max) { return String(v == null ? '' : v).trim().slice(0, max || 300); }
@@ -57,7 +57,10 @@ var FC_LOGIC_FACTORY = function (env) {
     if (o.citizenId !== undefined) o.citizenId = digits(o.citizenId);
     if (o.rai !== undefined) { o.rai = Math.round(parseFloat(o.rai) * 100) / 100 || 0; o.tons = Math.round(o.rai * TPR * 100) / 100; }
     if (o.distanceKm !== undefined) o.distanceKm = parseFloat(o.distanceKm) || '';
-    if (o.ownership !== undefined && ['own', 'lease', 'consent'].indexOf(o.ownership) < 0) o.ownership = 'own';
+    if (o.ownership !== undefined) { // เลือกได้หลายแบบ: "own lease consent"
+      var ow = String(o.ownership).split(/[\s,]+/).filter(function (x) { return ['own', 'lease', 'consent'].indexOf(x) >= 0; });
+      o.ownership = ow.length ? ow.join(' ') : 'own';
+    }
     return o;
   }
   function validate(o) {
@@ -66,7 +69,6 @@ var FC_LOGIC_FACTORY = function (env) {
     if (!/^0\d{8,9}$/.test(o.phone)) return 'เบอร์โทรไม่ถูกต้อง';
     if (o.citizenId.length !== 13) return 'เลขบัตรประชาชนไม่ถูกต้อง';
     if (!o.zone) return 'เลือกเขต';
-    if (!o.landLocation) return 'กรอกที่ตั้งที่ดิน';
     if (!(o.rai > 0) || o.rai > 5000) return 'จำนวนไร่ไม่ถูกต้อง';
     return '';
   }
@@ -74,7 +76,8 @@ var FC_LOGIC_FACTORY = function (env) {
     for (var i = 0; i < db.rows.length; i++) {
       var r = db.rows[i];
       if (r.id !== exceptId && r.season === SEASON && r.status !== 'cancelled' && r.citizenId === o.citizenId &&
-        r.product === o.product && String(r.landLocation).replace(/\s/g, '') === String(o.landLocation).replace(/\s/g, '')) return r;
+        r.product === o.product && (o.landLocation ? String(r.landLocation).replace(/\s/g, '') === String(o.landLocation).replace(/\s/g, '')
+          : Number(r.rai) === Number(o.rai))) return r;
     }
     return null;
   }
@@ -121,7 +124,8 @@ var FC_LOGIC_FACTORY = function (env) {
         }
       }
       if (!list.length) return fail('ไม่พบคำขอ — ตรวจเลขที่คำขอ/เลขบัตรประชาชน และเบอร์โทรอีกครั้ง');
-      var views = list.slice().sort(function (a, b) { return String(b.created).localeCompare(String(a.created)); }).map(publicView);
+      var views = list.slice().sort(function (a, b) { return String(b.created).localeCompare(String(a.created)); })
+        .map(function (x) { var v = publicView(x); v.ownerName = String(x.name || ''); return v; });
       return done(db, { req: views[0], reqs: views });
     },
     upload: function (db, p) {
@@ -135,13 +139,13 @@ var FC_LOGIC_FACTORY = function (env) {
       }
       if (!p.data || DOC_TYPES.indexOf(p.docType) < 0) return fail('ไม่มีไฟล์');
       if (p.data.length > 14 * 1024 * 1024) return fail('ไฟล์ใหญ่เกินไป');
-      var replace = p.docType === 'form'; // ใบคำร้อง PDF: สร้างใหม่ทับฉบับเดิม
+      var replace = p.docType === 'form' || p.docType === 'sign'; // ใบคำร้อง PDF / ลายเซ็น: ทับฉบับเดิม
       var files = replace ? [] : (r.docs[p.docType] || []);
       if (files.length >= 10) return fail('แนบได้สูงสุด 10 ไฟล์ต่อรายการ');
-      var f = env.storeFile(r, p.docType, { name: str(p.name, 120) || 'file', mime: str(p.mime, 80), data: p.data }, replace ? (r.docs.form || []) : null);
+      var f = env.storeFile(r, p.docType, { name: str(p.name, 120) || 'file', mime: str(p.mime, 80), data: p.data }, replace ? (r.docs[p.docType] || []) : null);
       if (f.folderUrl) { r.folderUrl = f.folderUrl; delete f.folderUrl; }
       r.docs[p.docType] = files.concat([f]);
-      touch(db, r, u ? u.name : 'ผู้ขอ', replace ? 'สร้างใบคำร้อง PDF' : 'แนบไฟล์ ' + p.docType);
+      touch(db, r, u ? u.name : 'ผู้ขอ', p.docType === 'sign' ? 'บันทึกลายเซ็นผู้ขอ' : replace ? 'สร้างใบคำร้อง PDF' : 'แนบไฟล์ ' + p.docType);
       return done(db, { file: f });
     },
     // เปิดไฟล์ที่แนบแล้ว (ดูเป็น PDF ในเว็บ ไม่ต้องแชร์ Drive) — เจ้าหน้าที่ตามสิทธิ์เขต / ผู้ขอด้วยเลขคำขอ + เบอร์เต็ม
