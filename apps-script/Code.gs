@@ -346,6 +346,20 @@ function pinGuard_(p, res) {
   return null;
 }
 
+// กันเดาเบอร์โทร/เลขคำขอในหน้าตรวจสถานะ: ค้นไม่เจอ 10 ครั้งใน 10 นาทีต่อเครื่อง หรือ 300 ครั้งรวม → รอ 10 นาที
+function lookupGuard_(p, res) {
+  if (p.action !== 'status' && !(p.phone && !p.pin)) return null;
+  var c = CacheService.getScriptCache(), dev = String(p.dev || 'nodev').replace(/[^\w-]/g, '').slice(0, 40) || 'nodev';
+  var kDev = 'lkfail:' + dev, nDev = Number(c.get(kDev) || 0), nAll = Number(c.get('lkfail') || 0);
+  if (!res) {
+    if (nDev >= 10) return { ok: false, error: 'ค้นหาไม่พบหลายครั้ง เครื่องนี้ต้องรอ 10 นาที — ตรวจเลขที่คำขอและเบอร์โทรอีกครั้ง' };
+    if (nAll >= 300) return { ok: false, error: 'ระบบตรวจสถานะไม่ว่างชั่วคราว กรุณาลองใหม่ใน 10 นาที' };
+    return null;
+  }
+  if (!res.ok && /ไม่พบคำขอ|ไม่มีสิทธิ์/.test(res.error)) { c.put(kDev, String(nDev + 1), 600); c.put('lkfail', String(nAll + 1), 600); }
+  return null;
+}
+
 var DEMO_VER = '3'; // เพิ่มเลขเมื่อรูปแบบข้อมูลเปลี่ยน → เดโมล้างและสร้างตัวอย่างใหม่เองหนึ่งครั้ง
 function demoInit_() {
   var props = PropertiesService.getScriptProperties();
@@ -366,7 +380,7 @@ function demoInit_() {
 function handle_(p) {
   if (isDemo_()) demoInit_();
   ensureSchema_();
-  var blocked = pinGuard_(p); if (blocked) return blocked;
+  var blocked = pinGuard_(p) || lookupGuard_(p); if (blocked) return blocked;
   if (ADMIN[p.action]) {
     var me = null;
     if (p.action !== 'config') {
@@ -393,7 +407,7 @@ function handle_(p) {
   try {
     var db = loadDb_();
     var res = logic_().handle(db, p.action, p);
-    pinGuard_(p, res);
+    pinGuard_(p, res); lookupGuard_(p, res);
     if (res.ok && res.removed) { // ลบแถวคำขอ (หาแถวใหม่ตามเลขที่ กันแถวเลื่อน)
       var ids = db.sheet.getRange(1, 1, db.sheet.getLastRow(), 1).getDisplayValues();
       for (var i = ids.length - 1; i > 0; i--) if (ids[i][0] === res.removed) { db.sheet.deleteRow(i + 1); break; }

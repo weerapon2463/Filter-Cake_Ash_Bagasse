@@ -19,9 +19,11 @@ var FC_LOGIC_FACTORY = function (env) {
     'distanceKm', 'ownership', 'transport', 'truckType', 'plate', 'note'];
   // จบที่แผนกสิ่งแวดล้อม: env_ok = เอกสารผ่าน = เสร็จ
   var STATUSES = ['submitted', 'zone_ok', 'fix', 'env_ok', 'cancelled'];
-  var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
+  var ZONE_MOVES = { zone_ok: ['submitted', 'fix'], fix: ['submitted', 'fix'], cancelled: ['submitted', 'fix', 'zone_ok'] };
   var UPLOAD_OPEN = ['submitted', 'zone_ok', 'fix'];
   var DOC_TYPES = ['form', 'idcard', 'house', 'farmer', 'deed', 'lease', 'consent', 'owner', 'sign']; // sign = ลายเซ็นผู้ขอ (ใช้สร้างใบคำร้องใหม่)
+  var PRODUCTS = ['filtercake', 'leaf', 'ash'];
+  var DUP_WINDOW_MS = 30 * 60 * 1000; // ไม่มีที่ตั้งที่ดิน: ถือว่าซ้ำเมื่อยื่นรายการเดิมซ้ำภายใน 30 นาที (กดส่งซ้ำ/เน็ตหลุด)
 
   function digits(v) { return String(v == null ? '' : v).replace(/\D/g, ''); }
   function str(v, max) { return String(v == null ? '' : v).trim().slice(0, max || 300); }
@@ -63,12 +65,17 @@ var FC_LOGIC_FACTORY = function (env) {
     }
     return o;
   }
+  function thaiId(v) { // เลขบัตรประชาชน 13 หลัก + หลักตรวจสอบ
+    if (!/^\d{13}$/.test(v)) return false;
+    for (var s = 0, i = 0; i < 12; i++) s += Number(v.charAt(i)) * (13 - i);
+    return (11 - (s % 11)) % 10 === Number(v.charAt(12));
+  }
   function validate(o) {
-    if (!o.product) return 'เลือกชนิดสิ่งปฏิกูล';
+    if (PRODUCTS.indexOf(o.product) < 0) return 'เลือกชนิดสิ่งปฏิกูล';
     if (!o.name || o.name.length < 4) return 'กรอกชื่อ-นามสกุล';
     if (!/^0\d{8,9}$/.test(o.phone)) return 'เบอร์โทรไม่ถูกต้อง';
-    if (o.citizenId.length !== 13) return 'เลขบัตรประชาชนไม่ถูกต้อง';
-    if (!o.zone) return 'เลือกเขต';
+    if (!thaiId(o.citizenId)) return 'เลขบัตรประชาชนไม่ถูกต้อง';
+    if (!o.zone || o.zone.length > 20) return 'เลือกเขต';
     if (!(o.rai > 0) || o.rai > 5000) return 'จำนวนไร่ไม่ถูกต้อง';
     return '';
   }
@@ -77,7 +84,7 @@ var FC_LOGIC_FACTORY = function (env) {
       var r = db.rows[i];
       if (r.id !== exceptId && r.season === SEASON && r.status !== 'cancelled' && r.citizenId === o.citizenId &&
         r.product === o.product && (o.landLocation ? String(r.landLocation).replace(/\s/g, '') === String(o.landLocation).replace(/\s/g, '')
-          : Number(r.rai) === Number(o.rai))) return r;
+          : Number(r.rai) === Number(o.rai) && !exceptId && Math.abs(Date.parse(env.now()) - Date.parse(r.created)) < DUP_WINDOW_MS)) return r;
     }
     return null;
   }
@@ -136,6 +143,7 @@ var FC_LOGIC_FACTORY = function (env) {
         var ph = digits(p.phone);
         if (ph.length < 9 || r.phone !== ph) return fail('ไม่มีสิทธิ์แนบไฟล์');
         if (UPLOAD_OPEN.indexOf(r.status) < 0) return fail('คำขอนี้ปิดการแนบไฟล์แล้ว');
+        if ((p.docType === 'form' || p.docType === 'sign') && ((r.docs || {})[p.docType] || []).length) return fail('มีใบคำร้องแล้ว — ถ้าต้องแก้ ติดต่อหัวหน้าเขต');
       }
       if (!p.data || DOC_TYPES.indexOf(p.docType) < 0) return fail('ไม่มีไฟล์');
       if (p.data.length > 14 * 1024 * 1024) return fail('ไฟล์ใหญ่เกินไป');

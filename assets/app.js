@@ -37,6 +37,17 @@
     { id: 'signed', label: 'ใบคำร้องมีลายเซ็นผู้ขอ' },
     { id: 'measures', label: 'ผู้ขอเซ็นรับเอกสารมาตรการป้องกันผลกระทบฯ แล้ว' },
   ];
+  // ประกาศความเป็นส่วนตัว (พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562) — แจ้งก่อนเก็บข้อมูล
+  function privacyHtml() {
+    return `<details class="privacy"><summary>🔒 การเก็บและใช้ข้อมูลส่วนบุคคล (อ่านก่อนยื่น)</summary>
+      <p><b>ผู้เก็บข้อมูล:</b> ${esc(CFG.ORG_NAME)} โดย${esc(CFG.DEPT_NAME)}</p>
+      <p><b>ข้อมูลที่เก็บ:</b> ชื่อ-นามสกุล เบอร์โทร เลขบัตรประชาชน ที่อยู่ ข้อมูลที่ดินและการขนส่ง ลายเซ็น และสำเนาเอกสารที่แนบ</p>
+      <p><b>ใช้เพื่อ:</b> พิจารณาคำขอรับสิ่งปฏิกูล ยื่นขออนุญาตนำสิ่งปฏิกูลออกนอกโรงงานต่อกรมโรงงานอุตสาหกรรมตามกฎหมาย และติดต่อท่านเรื่องคำขอนี้เท่านั้น</p>
+      <p><b>ผู้เข้าถึงข้อมูล:</b> หัวหน้าเขตของท่าน แผนกสิ่งแวดล้อม และกรมโรงงานอุตสาหกรรม — ไม่เปิดเผยแก่ผู้อื่น ไม่ใช้เพื่อการตลาด</p>
+      <p><b>ระยะเวลาเก็บ:</b> เท่าที่จำเป็นต่อการขออนุญาตและตามที่กฎหมายกำหนด แล้วลบหรือทำลาย</p>
+      <p><b>สิทธิของท่าน:</b> ขอดู ขอสำเนา ขอแก้ไข ขอลบ หรือคัดค้านการใช้ข้อมูล และร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล — ติดต่อ ${esc(CFG.DEPT_NAME)} โทร ${esc(CFG.CONTACT_TEL)}</p>
+    </details>`;
+  }
   // แบบฟอร์มเปล่าให้ดาวน์โหลดไปพิมพ์/กรอก (เช่น หนังสือยินยอมให้ใช้ที่ดิน)
   function templateLinks(d) {
     if (!d || !d.templates) return '';
@@ -136,7 +147,7 @@
     } catch (x) { return ''; }
   }
   async function api(action, payload = {}) {
-    if (payload.pin) payload = Object.assign({ dev: deviceId() }, payload);
+    payload = Object.assign({ dev: deviceId() }, payload); // ใช้จำกัดการเดา PIN / เบอร์โทร รายเครื่อง
     if (!LIVE) return Mock.call(action, JSON.parse(JSON.stringify(payload)));
     const DOWN = 'ระบบหลังบ้านยังไม่พร้อมใช้งาน (ผู้ดูแลยังไม่ได้เปิดสิทธิ์ Google) — ลองใหม่ภายหลัง หรือใช้โหมดทดลอง';
     let r, j;
@@ -296,7 +307,7 @@
 
       <div class="p-sec">ลงชื่อผู้ขอ <small class="muted">(ใช้นิ้วเซ็นในกรอบ — ใช้รับรองใบคำร้องและรับรองสำเนาเอกสารทุกแผ่น)</small>${staff ? ' <small class="muted">— ถ้าผู้ขออยู่ด้วย</small>' : ''}</div>
       <div class="sigbox" data-sigbox></div>
-      ${staff ? '' : `<label class="consent"><input type="checkbox" name="agree" required> ข้าพเจ้าขอรับรองว่าข้อมูลข้างต้นเป็นความจริง สำเนาเอกสารที่แนบถูกต้อง และขอยอมรับเงื่อนไขทางบริษัทฯ ทุกประการ</label>`}
+      ${staff ? '' : `${privacyHtml()}<label class="consent"><input type="checkbox" name="agree" required> ข้าพเจ้าขอรับรองว่าข้อมูลข้างต้นเป็นความจริง สำเนาเอกสารที่แนบถูกต้อง ยอมรับเงื่อนไขทางบริษัทฯ ทุกประการ และรับทราบการเก็บและใช้ข้อมูลส่วนบุคคลตามประกาศข้างต้น</label>`}
       <div class="actions">
         ${opts.onCancel ? '<button type="button" class="btn ghost" data-cancel>ยกเลิก</button>' : ''}
         <button class="btn primary" type="submit">${v.id ? 'บันทึก' : 'ยื่นคำร้อง'}</button>

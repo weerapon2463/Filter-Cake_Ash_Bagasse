@@ -267,3 +267,8 @@ h4 .btn.small { margin-left: 6px; vertical-align: middle; }
 .p-docs .tpl, .p-docs .docrow > .tpl { display: flex; clear: both; padding-top: 4px; }
 .p-docs .docrow .tpl .btn, .docrow .tpl .btn { float: none; margin-top: 0; }
 .radios input[type=checkbox] { width: auto; }
+
+/* ประกาศความเป็นส่วนตัว (PDPA) */
+.privacy { margin: 10px 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: .9rem; }
+.privacy summary { cursor: pointer; font-weight: 600; }
+.privacy p { margin: 6px 0; }
