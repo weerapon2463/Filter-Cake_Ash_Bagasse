@@ -358,8 +358,8 @@
       $('[data-docs]', f).innerHTML = docsFor(own).map(d => {
         const n = (have[d.id] || []).length;
         const mine = picked[d.id] || [];
-        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ส่งแล้ว ${n} ไฟล์</span>` : ''}${templateLinks(d)}</div>
-          ${docButtons(d.id)}
+        return `<li class="docrow"><div>${esc(d.label)} 1 ฉบับ${n ? `<span class="ok">✓ ส่งแล้ว ${n} ไฟล์</span>` : ''}</div>
+          ${docButtons(d.id)}${templateLinks(d)}
           ${mine.length ? `<div class="thumbs">${mine.map((file, i) => `<span class="thumb" data-view="${d.id}" title="ดูตัวอย่าง / แก้ไข">${file.type.startsWith('image/') ? `<img src="${thumbUrl(file)}" alt="">` : '<b>PDF</b>'}<button type="button" data-rm="${d.id}:${i}" aria-label="ลบรูป">✕</button></span>`).join('')}<button type="button" class="btn small" data-view="${d.id}">👁 ดูตัวอย่าง / แก้ไข</button></div>` : ''}</li>`;
       }).join('');
     }

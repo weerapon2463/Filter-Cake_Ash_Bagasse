@@ -264,4 +264,6 @@ h4 .btn.small { margin-left: 6px; vertical-align: middle; }
 /* แบบฟอร์มเปล่าให้ดาวน์โหลด (หนังสือยินยอมให้ใช้ที่ดิน) */
 .tpl { margin-top: 6px; font-size: .9rem; color: var(--muted, #666); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tpl a.btn { text-decoration: none; }
+.p-docs .tpl { clear: both; padding-top: 4px; }
+.p-docs .docrow .tpl .btn, .docrow .tpl .btn { float: none; margin-top: 0; }
 .radios input[type=checkbox] { width: auto; }
