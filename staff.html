@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=20260930f">
+<link rel="stylesheet" href="assets/style.css?v=20260930g">
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -42,7 +42,7 @@
       <button class="btn" id="reload" title="โหลดใหม่">↻</button>
       <button class="btn primary" id="addNew">+ คีย์คำขอแทนชาวไร่</button>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap cards">
       <table>
         <thead><tr>
           <th><input type="checkbox" id="checkAll" aria-label="เลือกทั้งหมด"></th>
@@ -60,9 +60,9 @@
 <dialog id="dlg"><div class="dhead"><b data-title></b><button class="btn small ghost" data-close aria-label="ปิด">✕</button></div><div class="dbody" data-body></div></dialog>
 <div id="print"></div>
 
-<script src="assets/config.js?v=20260930f"></script>
-<script src="assets/logic.js?v=20260930f"></script>
-<script src="assets/app.js?v=20260930f"></script>
+<script src="assets/config.js?v=20260930g"></script>
+<script src="assets/logic.js?v=20260930g"></script>
+<script src="assets/app.js?v=20260930g"></script>
 <script>
 (function () {
   const { CFG, STATUS, STAFF_CHECKS, OWNERSHIP, $, $$, esc, fmtNum, fmtDate, num, productName, statusBadge, stepper, toast, api, docsFor, readFileForUpload } = FC;
@@ -142,13 +142,14 @@
     $$('[data-st]').forEach(b => (b.onclick = () => { filter.status = b.dataset.st; selected.clear(); render(); }));
     const list = visible();
     [...selected].forEach(id => { if (!list.some(r => r.id === id)) selected.delete(id); });
+    // data-label = หัวคอลัมน์ ใช้แสดงแบบการ์ดบนมือถือ (style.css: .table-wrap.cards)
     $('[data-rows]').innerHTML = list.map(r => `<tr data-id="${esc(r.id)}">
-      <td><input type="checkbox" data-sel="${esc(r.id)}" ${selected.has(r.id) ? 'checked' : ''} aria-label="เลือก"></td>
-      <td><b>${esc(r.id)}</b><br><small class="muted">${fmtDate(r.created)}</small></td>
-      <td>${esc(r.name)}<br><small class="muted">${esc(r.phone)}</small></td>
-      <td>${esc(r.zone)}</td><td>${esc(productName(r.product))}</td>
-      <td style="text-align:right">${fmtNum(r.rai, 2)}</td><td style="text-align:right">${fmtNum(r.tons, 1)}</td>
-      <td>${docsDone(r)}${newBadge(r)}</td><td>${statusBadge(r.status)}</td></tr>`).join('') ||
+      <td class="c-sel"><input type="checkbox" data-sel="${esc(r.id)}" ${selected.has(r.id) ? 'checked' : ''} aria-label="เลือก"></td>
+      <td class="c-id"><b>${esc(r.id)}</b><br><small class="muted">${fmtDate(r.created)}</small></td>
+      <td class="c-name">${esc(r.name)}<br><small class="muted">${esc(r.phone)}</small></td>
+      <td data-label="เขต">${esc(r.zone)}</td><td data-label="ชนิด">${esc(productName(r.product))}</td>
+      <td data-label="ไร่" style="text-align:right">${fmtNum(r.rai, 2)}</td><td data-label="ตัน" style="text-align:right">${fmtNum(r.tons, 1)}</td>
+      <td data-label="เอกสาร">${docsDone(r)}${newBadge(r)}</td><td class="c-st">${statusBadge(r.status)}</td></tr>`).join('') ||
       '<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">ไม่มีรายการ</td></tr>';
     const sumR = list.reduce((s, r) => s + num(r.rai), 0), sumT = list.reduce((s, r) => s + num(r.tons), 0);
     $('[data-summary]').textContent = `แสดง ${list.length} ราย · ${fmtNum(sumR, 2)} ไร่ · ${fmtNum(sumT, 1)} ตัน`;

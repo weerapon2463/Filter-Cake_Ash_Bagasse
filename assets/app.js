@@ -135,8 +135,9 @@
 
   // ---------- API ----------
   // ?demo=1 = บังคับโหมดทดลอง (ใช้ฝึกอบรม/สาธิต โดยไม่แตะข้อมูลจริง)
-  const DEMO = !CFG.API_URL || /[?&]demo=1/.test(location.search);
-  const ENDPOINT = DEMO ? CFG.DEMO_API_URL : CFG.API_URL;
+  const MOCK = /[?&]mock=1/.test(location.search); // ทดสอบในเครื่อง: เก็บข้อมูลในเบราว์เซอร์ ไม่เรียกเซิร์ฟเวอร์ (tests/e2e.mjs)
+  const DEMO = MOCK || !CFG.API_URL || /[?&]demo=1/.test(location.search);
+  const ENDPOINT = MOCK ? '' : DEMO ? CFG.DEMO_API_URL : CFG.API_URL;
   const LIVE = !!ENDPOINT; // มี backend จริง (รวมเดโมกลาง) — ไม่ใช่เก็บในเบราว์เซอร์
   // รหัสเครื่อง (สุ่มครั้งเดียว) — ใส่ PIN ผิดซ้ำ ๆ ล็อกเฉพาะเครื่องนั้น ไม่ล็อกทั้งระบบ
   function deviceId() {

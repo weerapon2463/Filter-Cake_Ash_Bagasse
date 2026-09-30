@@ -275,3 +275,34 @@ h4 .btn.small { margin-left: 6px; vertical-align: middle; }
 
 /* เตือนคุณภาพรูปหลังถ่าย */
 .sp-q { margin: 6px 0 8px; padding: 8px 12px; border-radius: 10px; background: #fff4d6; color: #6b4a00; font-size: .92rem; border: 1px solid #f0d58a; }
+
+/* รายการคำขอของเจ้าหน้าที่บนมือถือ: แถวตาราง → การ์ด (ไม่ต้องเลื่อนซ้าย-ขวา) */
+@media (max-width: 620px) {
+  .table-wrap.cards { background: none; border: 0; overflow: visible; }
+  .table-wrap.cards table { min-width: 0; width: 100%; border-collapse: separate; }
+  .table-wrap.cards thead { display: none; }
+  .table-wrap.cards tbody tr { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: start;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; }
+  .table-wrap.cards td { display: block; padding: 0; border: 0; text-align: left !important; }
+  .table-wrap.cards td.c-sel { grid-row: 1 / span 2; padding-top: 2px; }
+  .table-wrap.cards td.c-id { grid-column: 2; }
+  .table-wrap.cards td.c-st { grid-column: 3; grid-row: 1; justify-self: end; }
+  .table-wrap.cards td.c-name { grid-column: 2 / span 2; }
+  .table-wrap.cards td[data-label] { font-size: .92rem; }
+  .table-wrap.cards td:nth-child(4), .table-wrap.cards td:nth-child(6) { grid-column: 2; }
+  .table-wrap.cards td:nth-child(5), .table-wrap.cards td:nth-child(7) { grid-column: 3; justify-self: end; }
+  .table-wrap.cards td:nth-child(8) { grid-column: 2 / span 2; }
+  .table-wrap.cards td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
+  .table-wrap.cards td[colspan] { grid-column: 1 / -1; }
+}
+/* ตัวเลขสรุปบนมือถือ: 4 ช่องต่อแถว เล็กลง รายการคำขอขึ้นมาเห็นเร็ว */
+@media (max-width: 620px) {
+  .stats { grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .stat { padding: 6px 6px; border-radius: 10px; }
+  .stat b { font-size: 1.1rem; }
+  .stat span { font-size: .7rem; line-height: 1.2; display: block; }
+  .table-wrap.cards tbody tr { padding: 8px 10px; margin-bottom: 8px; line-height: 1.35; }
+  .table-wrap.cards td.c-name small { display: inline; }
+  .table-wrap.cards td.c-name br, .table-wrap.cards td.c-id br { display: none; }
+  .table-wrap.cards td.c-id small, .table-wrap.cards td.c-name small { margin-left: 6px; }
+}
