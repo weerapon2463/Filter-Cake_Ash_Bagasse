@@ -146,6 +146,20 @@
       return d;
     } catch (x) { return ''; }
   }
+  const netError = m => Object.assign(new Error(m), { net: true }); // ส่งไม่ถึง/ไม่ได้คำตอบ (ไม่ใช่เซิร์ฟเวอร์ปฏิเสธ)
+  // อัปโหลดไฟล์: สัญญาณอ่อน/เน็ตหลุด ลองส่งใหม่เอง 2 ครั้ง (รอ 3 และ 6 วินาที) — ข้อผิดพลาดจากเซิร์ฟเวอร์ไม่ลองซ้ำ
+  async function apiUpload(payload) {
+    for (let attempt = 1; ; attempt++) {
+      try { return await api('upload', payload); }
+      catch (x) {
+        // ครั้งก่อนส่งถึงแล้วแต่คำตอบหาย → ไฟล์ที่แนบได้ครั้งเดียวจะตอบว่า "มีแล้ว" = สำเร็จ
+        if (attempt > 1 && /มีใบคำร้องแล้ว/.test(x.message)) return { ok: true };
+        if (!x.net || attempt >= 3) throw x;
+        toast(`สัญญาณอ่อน — กำลังส่งใหม่ (ครั้งที่ ${attempt + 1})`);
+        await new Promise(r => setTimeout(r, attempt * 3000));
+      }
+    }
+  }
   async function api(action, payload = {}) {
     payload = Object.assign({ dev: deviceId() }, payload); // ใช้จำกัดการเดา PIN / เบอร์โทร รายเครื่อง
     if (!LIVE) return Mock.call(action, JSON.parse(JSON.stringify(payload)));
@@ -157,8 +171,8 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // เลี่ยง CORS preflight
         body: JSON.stringify(Object.assign({ action }, payload)),
       });
-    } catch (x) { throw new Error(navigator.onLine === false ? 'ไม่มีอินเทอร์เน็ต' : DOWN); }
-    try { j = await r.json(); } catch (x) { throw new Error(DOWN); }
+    } catch (x) { throw netError(navigator.onLine === false ? 'ไม่มีอินเทอร์เน็ต' : DOWN); }
+    try { j = await r.json(); } catch (x) { throw netError(DOWN); }
     if (!j.ok) throw new Error(j.error || 'เกิดข้อผิดพลาด');
     return j;
   }
@@ -723,6 +737,29 @@
     };
   }
 
+  // ตรวจคุณภาพรูปเอกสาร (ในเครื่อง): ความคมจากความแปรปรวนของ Laplacian + ความสว่างเฉลี่ย บนรูปย่อกว้าง 480px
+  // เกณฑ์ตั้งจากภาพเอกสารจำลอง: คม ≈ 800–24,000 · เบลอจนอ่านยาก < ~350 → เตือนที่ < 200 (ไม่บังคับ)
+  async function photoQuality(file) {
+    try {
+      const img = await loadImg(URL.createObjectURL(file)), W = 480, H = Math.max(1, Math.round(img.height * W / img.width));
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data, gray = new Float32Array(W * H);
+      let sum = 0;
+      for (let i = 0; i < W * H; i++) { gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; sum += gray[i]; }
+      let s1 = 0, s2 = 0, n = 0;
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x, l = gray[i - 1] + gray[i + 1] + gray[i - W] + gray[i + W] - 4 * gray[i];
+        s1 += l; s2 += l * l; n++;
+      }
+      const mean = sum / (W * H), sharp = n ? s2 / n - (s1 / n) ** 2 : 0, issues = [];
+      if (sharp < 200) issues.push('ภาพอาจเบลอ');
+      if (mean < 70) issues.push('ภาพมืด');
+      else if (mean > 245) issues.push('ภาพสว่างจ้า/แสงสะท้อน');
+      return { mean, sharp, issues };
+    } catch (x) { return { issues: [] }; }
+  }
+
   // ถ่ายรูปเสร็จ → เห็นหน้าสำเนา A4 ที่มีลายน้ำแล้ว → เซ็นลงกรอบ "สำเนาถูกต้อง" บนหน้านั้นเลย
   // คืน File ที่ใช้ (อาจเป็นรูปที่ถ่ายใหม่) หรือ null ถ้ายกเลิก; opts.required = ต้องเซ็นก่อนกดใช้
   function signPage(file, mark = {}, opts = {}) {
@@ -733,6 +770,7 @@
       async function draw() {
         d.innerHTML = `<div class="dhead"><b>เซ็นรับรองสำเนาถูกต้อง</b><button type="button" class="btn small ghost" data-x aria-label="ปิด">✕</button></div>
           <div class="dbody"><p class="muted">ตรวจรูปให้ชัด แล้วใช้นิ้วเซ็นในกรอบ "สำเนาถูกต้อง" ด้านล่างรูป</p>
+          <div class="sp-q" hidden></div>
           <div class="sp-wrap"><span class="muted">กำลังจัดหน้า…</span></div>
           <div class="actions"><button type="button" class="btn ghost" data-x>ยกเลิก</button>
             <button type="button" class="btn" data-recam>📷 ถ่ายใหม่</button><input type="file" accept="image/*" capture="environment" data-re hidden>
@@ -749,6 +787,11 @@
         let c;
         try { c = await pageCanvas(file, Object.assign({}, mark, { signing: true })); }
         catch (x) { $('.sp-wrap', d).innerHTML = `<b class="tone-red">${esc(x.message)}</b>`; return; }
+        if (file.type.startsWith('image/')) photoQuality(file).then(q => {
+          const el = $('.sp-q', d); if (!el || !q.issues.length) return;
+          el.hidden = false;
+          el.innerHTML = `⚠ ${esc(q.issues.join(' · '))} — ถ้าอ่านตัวหนังสือบนเอกสารไม่ชัด กด <b>📷 ถ่ายใหม่</b> (วางเอกสารบนพื้นเรียบ แสงพอ ไม่มีเงา ถือให้นิ่ง)`;
+        });
         const b = c.box, wrap = $('.sp-wrap', d);
         wrap.innerHTML = `<img src="${c.toDataURL('image/jpeg', 0.8)}" alt="หน้าสำเนาเอกสาร"><div class="sp-pad" style="left:${b.x * 100}%;top:${b.y * 100}%;width:${b.w * 100}%;height:${b.h * 100}%"></div>`;
         const pad = signaturePad($('.sp-pad', wrap), { overlay: true });
@@ -970,7 +1013,7 @@
     others.forEach(f => jobs.push(() => readFileForUpload(f)));
     for (const job of jobs) {
       onStep && onStep();
-      await api('upload', Object.assign({ id, docType }, auth, await job()));
+      await apiUpload(Object.assign({ id, docType }, auth, await job()));
     }
   }
   // ลายเซ็นผู้ขอที่เก็บไว้กับคำขอ (ไฟล์ sign) — ใช้สร้างใบคำร้อง PDF ใหม่โดยลายเซ็นไม่หาย
@@ -982,7 +1025,7 @@
   }
   async function saveSign(id, auth, dataUrl) {
     if (!dataUrl) return;
-    try { await api('upload', Object.assign({ id, docType: 'sign', name: 'sign.png', mime: 'image/png', data: dataUrl.split(',')[1] }, auth)); }
+    try { await apiUpload(Object.assign({ id, docType: 'sign', name: 'sign.png', mime: 'image/png', data: dataUrl.split(',')[1] }, auth)); }
     catch (x) { console.warn(x); }
   }
   // สร้างใบคำร้องใหม่หลังแก้ข้อมูล: ใช้ลายเซ็นเดิม ถ้าไม่มี (คำขอเก่า) และมีใบเดิมอยู่แล้ว จะไม่ทับ — กันลายเซ็นหาย
@@ -992,7 +1035,7 @@
     return (await uploadFormPdf(Object.assign({}, r, { sign }), auth)) ? 'ok' : 'fail';
   }
   async function uploadFormPdf(r, auth) {
-    try { await api('upload', Object.assign({ id: r.id, docType: 'form' }, auth, await formPdf(r))); return true; }
+    try { await apiUpload(Object.assign({ id: r.id, docType: 'form' }, auth, await formPdf(r))); return true; }
     catch (x) { console.warn(x); return false; }
   }
 
@@ -1040,5 +1083,5 @@
 
   window.FC = { CFG, STATUS, STEPS, ROLE_LABEL, configReady, setSettings, downloadCsv, exportRequests, DOCS, OWNERSHIP, STAFF_CHECKS, docsFor, $, $$, esc, digits, num, fmtNum, fmtDate, validThaiId,
     productName, paperName, histText, printPaper, uploadDocs, uploadFormPdf, statusBadge, toast, readFileForUpload, api, LIVE, DEMO, renderRequestForm, stepper, footer,
-    askSignature, docButtons, reviewAndUpload, showPdf, fileButtons, bindOpen, templateLinks, regenFormPdf, ownList, ownLabel };
+    askSignature, docButtons, reviewAndUpload, showPdf, fileButtons, bindOpen, templateLinks, regenFormPdf, ownList, ownLabel, apiUpload, photoQuality };
 })();
